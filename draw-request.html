@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="lmg-sync.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMG — AIA G702/G703 Draw Request</title>
+<style>
+/* ═══════════════════════════════════════════════
+   SCREEN STYLES — LMG Design System
+═══════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7;color:#1d1d1f;min-height:100vh}
+
+nav{background:#fff;border-bottom:2px solid #111;padding:0 32px;display:flex;align-items:center;position:sticky;top:0;z-index:100;height:56px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.logo{font-size:16px;font-weight:700;letter-spacing:-.5px;color:#111;margin-right:32px;white-space:nowrap}
+.logo span{color:#ff5e14}
+.tab-btn{padding:0 18px;height:56px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#888;cursor:pointer;border:none;background:none;border-bottom:3px solid transparent;font-family:inherit;white-space:nowrap}
+.tab-btn.active{color:#ff5e14;border-bottom-color:#ff5e14}
+.tab-btn:hover{color:#111}
+.nav-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+
+.main{max-width:1200px;margin:0 auto;padding:36px 24px}
+.section{display:none}.section.active{display:block}
+.page-title{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#111;margin-bottom:6px}
+.page-sub{font-size:14px;color:#888;margin-bottom:28px}
+.flex-between{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
+.flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+.card{background:#fff;border:1px solid #e5e5e5;padding:28px;margin-bottom:20px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#aaa;margin-bottom:20px}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card-header .card-title{margin:0}
+
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#666}
+input[type=text],input[type=number],input[type=date],select{border:1px solid #ddd;padding:9px 12px;font-size:14px;font-family:inherit;color:#111;background:#fff;outline:none;width:100%;border-radius:0}
+input:focus,select:focus{border-color:#ff5e14}
+input[readonly]{background:#f5f5f7;color:#888}
+.help{font-size:11px;color:#bbb;margin-top:3px}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#111;color:#fff;padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+thead th.r{text-align:right}thead th.c{text-align:center}
+tbody tr:nth-child(even){background:#fafafa}
+tbody tr:hover{background:#fff8f5}
+tbody td{padding:6px 10px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tbody td.r{text-align:right;font-variant-numeric:tabular-nums}
+tbody td.c{text-align:center}
+tbody td.auto{color:#888;font-size:11px}
+tbody td input{border:none;background:transparent;padding:2px 0;width:100%;font-size:12px;font-family:inherit;color:#111}
+tbody td input[type=number]{text-align:right}
+tbody td input:focus{background:#fff;border:1px solid #ff5e14;padding:2px 6px;outline:none}
+.tfoot-row td{background:#f0f0f0;font-weight:700;padding:8px 10px;border-top:2px solid #ddd;font-size:12px}
+.tfoot-total td{background:#111;color:#fff;font-weight:700;padding:8px 10px}
+.tfoot-total td.r{text-align:right}
+.tbl-wrap{overflow-x:auto}
+
+.btn{padding:9px 20px;font-size:11px;font-weight:700;letter-spacing:.5px;cursor:pointer;border:none;text-transform:uppercase;font-family:inherit;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn-primary{background:#ff5e14;color:#fff}.btn-primary:hover{background:#e0520f}
+.btn-dark{background:#111;color:#fff}.btn-dark:hover{background:#333}
+.btn-ghost{background:transparent;color:#ff5e14;border:1px solid #ff5e14}.btn-ghost:hover{background:#fff3ed}
+.btn-sm{padding:5px 12px;font-size:10px}
+.btn-danger{background:#d32f2f;color:#fff}.btn-danger:hover{background:#b71c1c}
+.btn-green{background:#2e7d32;color:#fff}.btn-green:hover{background:#1b5e20}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:28px}
+.stat-box{background:#fff;border:1px solid #e5e5e5;padding:20px;border-left:3px solid #ff5e14}
+.stat-box .sl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#aaa;margin-bottom:8px}
+.stat-box .sv{font-size:22px;font-weight:700;color:#111;letter-spacing:-.5px}
+.stat-box.orange{background:#ff5e14;border-color:#ff5e14;border-left-color:#e0520f}
+.stat-box.orange .sl{color:rgba(255,255,255,.75)}.stat-box.orange .sv{color:#fff}
+.stat-box.dark{background:#111;border-color:#111}.stat-box.dark .sl{color:rgba(255,255,255,.5)}.stat-box.dark .sv{color:#fff}
+
+.progress-bar{height:6px;background:#e5e5e5;overflow:hidden;margin-bottom:6px}
+.progress-fill{height:100%;background:#ff5e14;transition:width .4s}
+.progress-label{font-size:12px;color:#666;display:flex;justify-content:space-between;margin-bottom:4px}
+
+.draw-card{background:#fff;border:1px solid #e5e5e5;padding:16px 24px;margin-bottom:10px;display:flex;align-items:center;gap:20px}
+.draw-card .dn{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#ff5e14;white-space:nowrap;width:64px}
+.draw-card .dd{flex:1}.draw-card .dd .dt{font-size:13px;color:#333}.draw-card .dd .dp{font-size:11px;color:#aaa;margin-top:2px}
+.draw-card .da{font-size:20px;font-weight:700;color:#111;text-align:right;white-space:nowrap}
+.draw-card .dact{display:flex;gap:6px;flex-shrink:0}
+.badge{display:inline-block;padding:3px 9px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.badge-submitted{background:#e3f2fd;color:#1565c0}
+.badge-approved{background:#e8f5e9;color:#2e7d32}
+.empty{text-align:center;padding:60px 24px;color:#ccc}
+
+/* ═══════════════════════════════════════════════
+   PRINT STYLES — AIA G702/G703 FORMAT
+═══════════════════════════════════════════════ */
+@media print {
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  nav,.tab-btn,.btn,.no-print,.section:not(.active){display:none!important}
+  body{background:#fff;font-family:'Times New Roman',Times,serif;font-size:9pt;color:#000}
+  .main{max-width:100%;padding:0;margin:0}
+  .section#tab-draw{display:block!important}
+  #tab-setup,#tab-sov,#tab-history{display:none!important}
+  .card{border:none;padding:0;margin:0}
+  .card-title{display:none}
+  .tbl-wrap{overflow:visible}
+  #draw-no-sov{display:none!important}
+
+  /* ── AIA G702 Page ─────────────────────────── */
+  .aia-g702-page{
+    page-break-after:always;
+    padding:0.4in;
+    font-family:'Times New Roman',Times,serif;
+    font-size:9pt;
+  }
+  .aia-g702-page.no-break{page-break-after:auto}
+
+  /* AIA Form Header Box */
+  .aia-header-box{
+    border:1.5pt solid #000;
+    margin-bottom:4pt;
+  }
+  .aia-header-top{
+    display:flex;
+    border-bottom:1pt solid #000;
+  }
+  .aia-header-title{
+    flex:1;
+    padding:4pt 6pt;
+    border-right:1pt solid #000;
+  }
+  .aia-header-title .aia-form-name{
+    font-size:7pt;font-weight:bold;letter-spacing:.5pt;text-transform:uppercase;
+  }
+  .aia-header-title .aia-form-title{
+    font-size:12pt;font-weight:bold;text-transform:uppercase;
+    letter-spacing:.5pt;line-height:1.2;margin-top:2pt;
+  }
+  .aia-header-doc{
+    padding:4pt 6pt;text-align:right;width:160pt;
+    font-size:7pt;font-weight:bold;
+  }
+  .aia-header-doc .doc-label{font-size:7pt;font-weight:bold;text-transform:uppercase;}
+  .aia-header-doc .doc-id{font-size:14pt;font-weight:bold;}
+  .aia-header-doc .doc-edition{font-size:7pt;}
+
+  /* Project info grid */
+  .aia-info-grid{display:flex;border-bottom:1pt solid #000;}
+  .aia-info-col{flex:1;border-right:1pt solid #000;padding:4pt 6pt;}
+  .aia-info-col:last-child{border-right:none;flex:0 0 140pt;}
+  .aia-info-label{font-size:6.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:.3pt;border-bottom:1pt solid #000;padding-bottom:2pt;margin-bottom:3pt;}
+  .aia-info-value{font-size:8pt;line-height:1.4;}
+  .aia-dist{font-size:7pt;}
+  .aia-dist div{margin-bottom:2pt;}
+
+  /* Application block */
+  .aia-app-block{padding:4pt 6pt;border-bottom:1pt solid #000;font-size:7.5pt;line-height:1.4;}
+  .aia-app-block strong{font-size:8pt;text-transform:uppercase;}
+
+  /* Payment lines */
+  .aia-payment-wrap{display:flex;}
+  .aia-payment-left{flex:1;border-right:1pt solid #000;padding:6pt;}
+  .aia-payment-right{width:200pt;padding:6pt;}
+  .aia-line{display:flex;align-items:baseline;margin-bottom:5pt;font-size:8pt;}
+  .aia-line-num{font-weight:bold;width:14pt;flex-shrink:0;font-size:8pt;}
+  .aia-line-label{flex:1;padding-right:6pt;line-height:1.3;}
+  .aia-line-label .sub{font-size:7pt;color:#333;display:block;}
+  .aia-line-dots{border-bottom:1pt dotted #000;flex:0 0 90pt;height:10pt;margin:0 4pt;}
+  .aia-line-amount{width:80pt;text-align:right;font-weight:bold;font-size:8.5pt;border-bottom:1pt solid #000;}
+  .aia-line.retainage-sub .aia-line-num{padding-left:10pt;font-weight:normal;}
+  .aia-line.retainage-sub .aia-line-label{padding-left:10pt;}
+  .aia-line.current-due{background:#f0f0f0;padding:3pt 0;margin-top:4pt;}
+  .aia-line.current-due .aia-line-amount{font-size:11pt;font-weight:bold;border-bottom:2pt solid #000;}
+
+  /* Certification blocks */
+  .aia-cert-wrap{display:flex;border-top:1pt solid #000;}
+  .aia-cert-block{flex:1;padding:6pt;border-right:1pt solid #000;font-size:7.5pt;}
+  .aia-cert-block:last-child{border-right:none;}
+  .aia-cert-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:.3pt;border-bottom:1pt solid #000;padding-bottom:2pt;margin-bottom:4pt;}
+  .aia-cert-text{font-size:6.5pt;line-height:1.4;margin-bottom:8pt;}
+  .aia-sig-line{border-top:1pt solid #000;margin-top:18pt;padding-top:2pt;font-size:6.5pt;}
+  .aia-sig-row{display:flex;gap:16pt;margin-top:6pt;}
+  .aia-sig-field{flex:1;border-bottom:1pt solid #000;font-size:6.5pt;height:14pt;}
+  .aia-sig-field-label{font-size:6pt;margin-top:2pt;}
+
+  /* ── AIA G703 Pages ─────────────────────────── */
+  .aia-g703-page{
+    page-break-before:always;
+    padding:0.3in 0.4in;
+    font-family:'Times New Roman',Times,serif;
+    font-size:8pt;
+  }
+  .aia-g703-header{margin-bottom:6pt;}
+  .aia-g703-title{font-size:9pt;font-weight:bold;text-transform:uppercase;letter-spacing:.5pt;}
+  .aia-g703-sub{font-size:7pt;margin-top:2pt;font-style:italic;}
+  .aia-g703-doc{float:right;font-size:9pt;font-weight:bold;letter-spacing:.5pt;}
+  .aia-g703-appno{font-size:8pt;font-weight:bold;margin-top:4pt;}
+  .aia-g703-note{font-size:7pt;font-style:italic;margin-top:3pt;clear:both;}
+
+  /* G703 Table */
+  .aia-g703-table{width:100%;border-collapse:collapse;margin-top:6pt;font-size:7.5pt;}
+  .aia-g703-table th{
+    border:1pt solid #000;padding:3pt 4pt;
+    text-align:center;font-size:6.5pt;font-weight:bold;
+    background:#e8e8e8;line-height:1.2;vertical-align:bottom;
+  }
+  .aia-g703-table th.l{text-align:left;}
+  .aia-g703-table td{border:1pt solid #000;padding:3pt 4pt;font-size:7.5pt;vertical-align:middle;}
+  .aia-g703-table td.r{text-align:right;}
+  .aia-g703-table td.c{text-align:center;}
+  .aia-g703-table tr.subtotal-row td{background:#e8e8e8;font-weight:bold;}
+  .aia-g703-table tr.total-row td{background:#d0d0d0;font-weight:bold;font-size:8pt;}
+  .aia-col-header{font-size:8pt;font-weight:bold;display:block;margin-bottom:2pt;}
+
+  /* G703 page number */
+  .aia-page-num{text-align:right;font-size:7pt;margin-top:4pt;}
+}
+
+/* Screen-only: hide print elements */
+@media screen {
+  .aia-g702-page,.aia-g703-page{display:none}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">LMG <span>GC</span>&nbsp; AIA Draw Request G702/G703</div>
+  <button class="tab-btn active" onclick="showTab('setup')">Project Setup</button>
+  <button class="tab-btn" onclick="showTab('sov')">Schedule of Values</button>
+  <button class="tab-btn" onclick="showTab('draw')">New Draw</button>
+  <button class="tab-btn" onclick="showTab('history')">Draw History</button>
+  <button class="tab-btn" onclick="showTab('projects')">📁 Projects</button>
+  <div id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#aaa;margin:0 4px;flex-shrink:0" title="Sync status"></div>
+  <span id="sync-label" style="font-size:10px;color:#aaa;white-space:nowrap">Not synced</span>
+  <div class="nav-right no-print">
+    <button class="btn btn-ghost btn-sm" onclick="exportJSON()">⬇ Export</button>
+    <button class="btn btn-dark btn-sm" onclick="importJSON()">⬆ Import</button>
+  </div>
+</nav>
+
+<div class="main">
+
+<!-- ══════ TAB 1: SETUP ══════ -->
+<div id="tab-setup" class="section active">
+  <div class="flex-between">
+    <div><div class="page-title">Project Setup</div><div class="page-sub">Enter once — auto-fills all AIA draw forms.</div></div>
+    <button class="btn btn-primary no-print" onclick="saveProject()">Save Project</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Project Information</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Project Name</label><input type="text" id="p-name"></div>
+      <div class="form-group"><label>Project Address</label><input type="text" id="p-location"></div>
+      <div class="form-group"><label>Owner / Client</label><input type="text" id="p-owner"></div>
+      <div class="form-group"><label>Owner Address</label><input type="text" id="p-owner-addr"></div>
+      <div class="form-group"><label>Architect of Record</label><input type="text" id="p-architect"></div>
+      <div class="form-group"><label>Architect Address</label><input type="text" id="p-arch-addr"></div>
+      <div class="form-group"><label>Lender / Bank</label><input type="text" id="p-lender"></div>
+      <div class="form-group"><label>Loan / Contract Number</label><input type="text" id="p-contract-no"></div>
+      <div class="form-group"><label>Contract Date</label><input type="date" id="p-contract-date"></div>
+      <div class="form-group"><label>Estimated Completion</label><input type="date" id="p-completion-date"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Contract Financials</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Original Contract Sum ($)</label><input type="number" id="p-contract-sum" placeholder="1681655.25" oninput="updateDashboard()"><div class="help">Total project budget</div></div>
+      <div class="form-group"><label>Retainage % — Completed Work</label><input type="number" id="p-retainage" value="10" min="0" max="20" step="0.5"></div>
+      <div class="form-group"><label>Retainage % — Stored Materials</label><input type="number" id="p-retainage-stored" value="10" min="0" max="20" step="0.5"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Change Orders</div>
+      <button class="btn btn-ghost btn-sm no-print" onclick="addCO()">+ Add Change Order</button>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead><tr><th style="width:50px">CO #</th><th>Description</th><th style="width:130px">Date</th><th class="r" style="width:140px">Amount ($)</th><th class="c no-print" style="width:50px">Del</th></tr></thead>
+      <tbody id="co-body"></tbody>
+      <tfoot><tr class="tfoot-total"><td colspan="3" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px">Net Change by Change Orders</td><td class="r" id="co-total">$0.00</td><td class="no-print"></td></tr></tfoot></table>
+    </div>
+    <div id="co-empty" class="empty" style="padding:20px;display:none"><p>No change orders.</p></div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-box"><div class="sl">Original Contract</div><div class="sv" id="ds-original">—</div></div>
+    <div class="stat-box"><div class="sl">Change Orders</div><div class="sv" id="ds-co">$0.00</div></div>
+    <div class="stat-box orange"><div class="sl">Contract Sum to Date</div><div class="sv" id="ds-sum">—</div></div>
+    <div class="stat-box"><div class="sl">Draws Submitted</div><div class="sv" id="ds-count">0</div></div>
+    <div class="stat-box"><div class="sl">Total Drawn</div><div class="sv" id="ds-drawn">$0.00</div></div>
+    <div class="stat-box dark"><div class="sl">Balance Remaining</div><div class="sv" id="ds-balance">—</div></div>
+  </div>
+</div>
+
+<!-- ══════ TAB 2: SCHEDULE OF VALUES ══════ -->
+<div id="tab-sov" class="section">
+  <div class="flex-between">
+    <div><div class="page-title">Schedule of Values</div><div class="page-sub">G703 base — set line items once. Total must equal contract sum.</div></div>
+    <div class="flex no-print">
+      <button class="btn btn-ghost btn-sm" onclick="addSOVRow()">+ Add Line Item</button>
+      <button class="btn btn-dark btn-sm" onclick="loadDefaultCSI()">Load Default CSI</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">AIA G703 — Schedule of Values</div>
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th style="width:36px">A</th><th class="l">B — Description of Work</th>
+        <th class="r" style="width:140px">C — Scheduled Value</th>
+        <th class="c" style="width:80px">% of Total</th>
+        <th class="c no-print" style="width:46px">Del</th>
+      </tr></thead>
+      <tbody id="sov-body"></tbody>
+      <tfoot>
+        <tr class="tfoot-row"><td colspan="2" style="font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px">Total</td><td class="r" id="sov-total">$0.00</td><td class="c" id="sov-pct-total">—</td><td class="no-print"></td></tr>
+        <tr class="tfoot-row" id="sov-diff-row" style="display:none"><td colspan="5" id="sov-diff-msg" style="font-size:11px"></td></tr>
+      </tfoot></table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ TAB 3: NEW DRAW ══════ -->
+<div id="tab-draw" class="section">
+  <div class="flex-between">
+    <div><div class="page-title">Draw Request — AIA G702/G703</div><div class="page-sub">Enter % complete per line. All AIA formulas calculate automatically.</div></div>
+    <div class="flex no-print">
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Print AIA G702/G703</button>
+      <button class="btn btn-primary" onclick="submitDraw()">Submit Draw</button>
+    </div>
+  </div>
+
+  <div id="draw-no-sov" class="card" style="display:none"><p style="color:#d32f2f;padding:8px">⚠ No Schedule of Values set up. Go to "Schedule of Values" tab first.</p></div>
+
+  <!-- SCREEN: Application Header -->
+  <div class="card">
+    <div class="card-title">Application Header — AIA G702</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Application Number</label><input type="number" id="d-appno" value="1" min="1" oninput="calcDraw()"></div>
+      <div class="form-group"><label>Application Date</label><input type="date" id="d-appdate" oninput="calcDraw()"></div>
+      <div class="form-group"><label>Period From</label><input type="date" id="d-from"></div>
+      <div class="form-group"><label>Period To</label><input type="date" id="d-to" oninput="calcDraw()"></div>
+      <div class="form-group"><label>Project</label><input type="text" id="d-project" readonly></div>
+      <div class="form-group"><label>Owner</label><input type="text" id="d-owner" readonly></div>
+      <div class="form-group"><label>Architect</label><input type="text" id="d-architect" readonly></div>
+      <div class="form-group"><label>Contractor</label><input type="text" value="LMG General Contractors, LLC" readonly></div>
+    </div>
+  </div>
+
+  <!-- SCREEN: G703 Table -->
+  <div class="card">
+    <div class="card-title">G703 — Continuation Sheet</div>
+    <div class="tbl-wrap">
+      <table id="draw-g703">
+        <thead>
+          <tr>
+            <th style="width:36px">A</th>
+            <th class="l">B — Description</th>
+            <th class="r" style="width:100px">C<br>Scheduled Value</th>
+            <th class="r" style="width:105px">D<br>From Prev App</th>
+            <th class="r" style="width:95px">E %<br>Complete to Date ↓</th>
+            <th class="r" style="width:105px">E $<br>This Period</th>
+            <th class="r" style="width:95px">F<br>Materials Stored</th>
+            <th class="r" style="width:110px">G<br>Total Comp+Stored</th>
+            <th class="c" style="width:60px">H<br>%</th>
+            <th class="r" style="width:105px">I<br>Balance to Finish</th>
+            <th class="r" style="width:95px">Retainage<br>This Period</th>
+          </tr>
+        </thead>
+        <tbody id="draw-body"></tbody>
+        <tfoot>
+          <tr class="tfoot-total">
+            <td colspan="2" style="font-size:9px;text-transform:uppercase;letter-spacing:.5px">GRAND TOTALS</td>
+            <td class="r" id="t-c">—</td>
+            <td class="r" id="t-d">—</td>
+            <td></td>
+            <td class="r" id="t-e" style="color:#ff5e14;font-size:13px;font-weight:800">—</td>
+            <td class="r" id="t-f">—</td>
+            <td class="r" id="t-g">—</td>
+            <td></td>
+            <td class="r" id="t-i">—</td>
+            <td class="r" id="t-ret">—</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- SCREEN: G702 Summary -->
+  <div class="card">
+    <div class="card-title">G702 — Payment Summary (AIA Lines 1–9)</div>
+    <div style="background:#fff;border:2px solid #111;padding:0;margin-bottom:24px">
+      <div style="background:#111;color:#fff;padding:10px 16px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;display:flex;justify-content:space-between">
+        <span>LMG General Contractors, LLC — Application and Certificate for Payment</span>
+        <span id="g702-appno-label">Application #1</span>
+      </div>
+      <div id="g702-lines" style="padding:0"></div>
+    </div>
+    <!-- Signature Block (screen) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:20px" class="no-print">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#aaa;margin-bottom:8px">Contractor Certification</div>
+        <div style="font-size:11px;color:#666;margin-bottom:24px;line-height:1.6">The undersigned Contractor certifies that the Work covered by this Application for Payment has been completed in accordance with the Contract Documents, that all amounts have been paid by the Contractor for Work for which previous Certificates for Payment were issued and payments received from the Owner, and that current payment shown herein is now due.</div>
+        <div style="border-top:1px solid #111;padding-top:6px;font-size:11px;color:#666;margin-top:32px">LMG General Contractors, LLC — Authorized Signature / Date</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#aaa;margin-bottom:8px">Architect Certification</div>
+        <div style="font-size:11px;color:#666;margin-bottom:24px;line-height:1.6">In accordance with the Contract Documents, based on on-site observations and the data comprising this application, the Architect certifies to the Owner that the Work has progressed as indicated, the quality of the Work is in accordance with the Contract Documents, and the amount certified is due the Contractor.</div>
+        <div style="border-top:1px solid #111;padding-top:6px;font-size:11px;color:#666;margin-top:32px">Architect — Authorized Signature / Certificate No. / Date</div>
+        <div style="border-top:1px solid #111;padding-top:6px;font-size:11px;color:#aaa;margin-top:32px">Amount Certified: $_________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       PRINT-ONLY: AIA G702 PAGE
+  ════════════════════════════════════════ -->
+  <div class="aia-g702-page" id="print-g702">
+    <!-- LMG Letterhead -->
+    <div style="margin-bottom:12pt;font-family:Arial,sans-serif">
+      <div style="font-size:13pt;font-weight:bold;letter-spacing:1pt">LMG General Contractors, LLC</div>
+      <div style="font-size:8pt">845 Texas Avenue, Suite 200 &nbsp;|&nbsp; Houston, TX 77002 &nbsp;|&nbsp; P (713) 932-8453</div>
+      <div style="border-top:1.5pt solid #000;margin-top:6pt"></div>
+    </div>
+
+    <!-- AIA G702 Form Box -->
+    <div class="aia-header-box">
+      <!-- Title Row -->
+      <div class="aia-header-top">
+        <div class="aia-header-title">
+          <div class="aia-form-name">AIA Document G702 — 1992 Edition</div>
+          <div class="aia-form-title">Application and Certificate<br>for Payment</div>
+        </div>
+        <div class="aia-header-doc">
+          <div class="doc-label">AIA Document</div>
+          <div class="doc-id">G702</div>
+          <div class="doc-edition">Application and Certificate for Payment</div>
+        </div>
+      </div>
+
+      <!-- Project Info Grid -->
+      <div class="aia-info-grid">
+        <div class="aia-info-col">
+          <div class="aia-info-label">To Owner:</div>
+          <div class="aia-info-value" id="pr-owner-block">—</div>
+        </div>
+        <div class="aia-info-col">
+          <div class="aia-info-label">Project:</div>
+          <div class="aia-info-value" id="pr-project-block">—</div>
+        </div>
+        <div class="aia-info-col" style="flex:0 0 155pt;border-right:none">
+          <div class="aia-info-label">Application No:</div>
+          <div class="aia-info-value" style="font-weight:bold;font-size:10pt" id="pr-appno">1</div>
+          <div class="aia-info-label" style="margin-top:4pt">Period To:</div>
+          <div class="aia-info-value" id="pr-period-to">—</div>
+          <div class="aia-info-label" style="margin-top:4pt">Contract Date:</div>
+          <div class="aia-info-value" id="pr-contract-date">—</div>
+          <div class="aia-dist" style="margin-top:6pt">
+            <div style="font-size:6.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:.3pt;margin-bottom:3pt">Distribution to:</div>
+            <div>☐ &nbsp;Owner</div><div>☐ &nbsp;Architect</div><div>☐ &nbsp;Contractor</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contractor / Architect row -->
+      <div class="aia-info-grid" style="border-bottom:1pt solid #000">
+        <div class="aia-info-col">
+          <div class="aia-info-label">From Contractor:</div>
+          <div class="aia-info-value">LMG General Contractors, LLC<br>845 Texas Avenue, Suite 200<br>Houston, TX 77002</div>
+        </div>
+        <div class="aia-info-col">
+          <div class="aia-info-label">Via Architect:</div>
+          <div class="aia-info-value" id="pr-architect-block">—</div>
+        </div>
+        <div class="aia-info-col" style="flex:0 0 155pt;border-right:none">
+          <div class="aia-info-label">Contract No.:</div>
+          <div class="aia-info-value" id="pr-contract-no">—</div>
+        </div>
+      </div>
+
+      <!-- Application certification text -->
+      <div class="aia-app-block">
+        <strong>Contractor's Application for Payment</strong><br>
+        Application is made for payment, as shown below, in connection with the Contract.
+        Continuation Sheet, AIA Document G703, is attached.
+      </div>
+
+      <!-- Payment Lines + Right Column -->
+      <div class="aia-payment-wrap">
+        <!-- Lines 1-9 -->
+        <div class="aia-payment-left">
+          <div class="aia-line">
+            <div class="aia-line-num">1.</div>
+            <div class="aia-line-label">Original Contract Sum</div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g1">—</div>
+          </div>
+          <div class="aia-line">
+            <div class="aia-line-num">2.</div>
+            <div class="aia-line-label">Net Change by Change Orders</div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g2">$0.00</div>
+          </div>
+          <div class="aia-line" style="font-weight:bold">
+            <div class="aia-line-num">3.</div>
+            <div class="aia-line-label">Contract Sum to Date (Line 1 ± 2)</div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g3">—</div>
+          </div>
+          <div class="aia-line">
+            <div class="aia-line-num">4.</div>
+            <div class="aia-line-label">Total Completed &amp; Stored to Date<span class="sub">(Column G on G703)</span></div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g4">—</div>
+          </div>
+          <div style="margin-bottom:4pt;font-size:8pt;padding-left:14pt;font-weight:bold">5. Retainage:</div>
+          <div class="aia-line retainage-sub">
+            <div class="aia-line-num">a.</div>
+            <div class="aia-line-label" id="pr-g5a-lbl">10% of Completed Work (Cols D+E on G703)<span class="sub" id="pr-g5a-amt"></span></div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g5a">—</div>
+          </div>
+          <div class="aia-line retainage-sub">
+            <div class="aia-line-num">b.</div>
+            <div class="aia-line-label" id="pr-g5b-lbl">10% of Stored Material (Column F on G703)<span class="sub" id="pr-g5b-amt"></span></div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g5b">—</div>
+          </div>
+          <div class="aia-line" style="font-weight:bold">
+            <div class="aia-line-num"></div>
+            <div class="aia-line-label">Total Retainage (Lines 5a + 5b)</div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g5">—</div>
+          </div>
+          <div class="aia-line" style="font-weight:bold">
+            <div class="aia-line-num">6.</div>
+            <div class="aia-line-label">Total Earned Less Retainage<span class="sub">(Line 4 Less Line 5 Total)</span></div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g6">—</div>
+          </div>
+          <div class="aia-line">
+            <div class="aia-line-num">7.</div>
+            <div class="aia-line-label">Less Previous Certificates for Payment</div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g7">—</div>
+          </div>
+          <div class="aia-line current-due">
+            <div class="aia-line-num" style="font-weight:bold">8.</div>
+            <div class="aia-line-label" style="font-weight:bold">Current Payment Due</div>
+            <div class="aia-line-dots" style="border-bottom:2pt dotted #000"></div>
+            <div class="aia-line-amount" id="pr-g8" style="font-size:11pt;border-bottom:2pt solid #000">—</div>
+          </div>
+          <div class="aia-line">
+            <div class="aia-line-num">9.</div>
+            <div class="aia-line-label">Balance to Finish, Including Retainage<span class="sub">(Line 3 less Line 6)</span></div>
+            <div class="aia-line-dots"></div>
+            <div class="aia-line-amount" id="pr-g9">—</div>
+          </div>
+        </div>
+
+        <!-- Right column: Contractor cert -->
+        <div class="aia-payment-right">
+          <div style="font-size:6.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:.3pt;border-bottom:1pt solid #000;padding-bottom:2pt;margin-bottom:4pt">Contractor's Signed Certification</div>
+          <div style="font-size:6.5pt;line-height:1.4;margin-bottom:6pt">The undersigned Contractor certifies that to the best of the Contractor's knowledge, information and belief the Work covered by this Application for Payment has been completed in accordance with the Contract Documents, that all amounts have been paid by the Contractor for Work for which previous Certificates for Payment were issued and payments received from the Owner, and that current payment shown herein is now due.</div>
+          <div style="font-size:6.5pt;font-weight:bold;margin-bottom:10pt">CONTRACTOR: LMG General Contractors, LLC</div>
+          <div style="border-bottom:1pt solid #000;margin-top:20pt;font-size:6pt">Signature of Authorized Officer</div>
+          <div style="border-bottom:1pt solid #000;margin-top:14pt;font-size:6pt">Adrian Ramirez, Managing Principal</div>
+          <div style="border-bottom:1pt solid #000;margin-top:14pt;font-size:6pt">Date</div>
+          <div style="margin-top:10pt;font-size:6.5pt">Subscribed and sworn to before me this ____ day of __________, 20____</div>
+          <div style="border-bottom:1pt solid #000;margin-top:14pt;font-size:6pt">Notary Public</div>
+          <div style="border-bottom:1pt solid #000;margin-top:14pt;font-size:6pt">My Commission Expires</div>
+        </div>
+      </div>
+
+      <!-- Architect Certification -->
+      <div class="aia-cert-wrap">
+        <div class="aia-cert-block">
+          <div class="aia-cert-title">Architect's Certificate for Payment</div>
+          <div class="aia-cert-text">In accordance with the Contract Documents, based on on-site observations and the data comprising this application, the Architect certifies to the Owner that to the best of the Architect's knowledge, information and belief the Work has progressed as indicated, the quality of the Work is in accordance with the Contract Documents, and the Contractor is entitled to payment of the Amount Certified.</div>
+          <div style="font-size:7pt;font-weight:bold">AMOUNT CERTIFIED &nbsp; $<span id="pr-amount-certified" style="border-bottom:1pt solid #000;min-width:80pt;display:inline-block">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+          <div style="font-size:6.5pt;font-style:italic;margin-top:3pt">(Attach explanation if amount certified differs from the amount applied for.)</div>
+          <div class="aia-sig-row" style="margin-top:8pt">
+            <div style="flex:1"><div class="aia-sig-field"></div><div class="aia-sig-field-label">Architect</div></div>
+          </div>
+          <div class="aia-sig-row">
+            <div style="flex:1"><div class="aia-sig-field"></div><div class="aia-sig-field-label">By</div></div>
+            <div style="flex:0 0 80pt"><div class="aia-sig-field"></div><div class="aia-sig-field-label">Date</div></div>
+          </div>
+          <div style="font-size:6.5pt;margin-top:4pt">This Certificate is not negotiable. The Amount Certified is payable only to the Contractor named herein.</div>
+        </div>
+      </div>
+    </div>
+    <div class="aia-page-num">Page 1 of <span id="pr-total-pages">2</span> &nbsp;|&nbsp; AIA G702/G703 &nbsp;|&nbsp; LMG General Contractors, LLC</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       PRINT-ONLY: AIA G703 PAGE(S)
+  ════════════════════════════════════════ -->
+  <div class="aia-g703-page" id="print-g703">
+    <div class="aia-g703-header">
+      <span class="aia-g703-doc">AIA DOCUMENT G703</span>
+      <div class="aia-g703-title">Continuation Sheet</div>
+      <div class="aia-g703-sub">AIA Document G702, Application and Certification for Payment, containing Contractor's signed Certification, is attached.</div>
+      <div class="aia-g703-note">In tabulations below, amounts are stated to the nearest dollar. Use Column I on Contracts where variable retainage for line items may apply.</div>
+      <div class="aia-g703-appno">
+        Application No: <span id="pr-g703-appno">1</span> &nbsp;|&nbsp;
+        Period Ending: <span id="pr-g703-period">—</span> &nbsp;|&nbsp;
+        Project: <span id="pr-g703-project">—</span> &nbsp;|&nbsp;
+        Contractor: LMG General Contractors, LLC
+      </div>
+    </div>
+    <table class="aia-g703-table" id="print-g703-table">
+      <thead>
+        <tr>
+          <th style="width:32pt">A<br><span style="font-weight:normal">Item<br>No.</span></th>
+          <th class="l" style="width:*">B<br><span style="font-weight:normal">Description of Work</span></th>
+          <th style="width:72pt">C<br><span style="font-weight:normal">Scheduled Value</span></th>
+          <th style="width:76pt">D<br><span style="font-weight:normal">Work Completed<br>From Previous<br>Application</span></th>
+          <th style="width:72pt">E<br><span style="font-weight:normal">Work Completed<br>This Period</span></th>
+          <th style="width:62pt">F<br><span style="font-weight:normal">Materials<br>Presently<br>Stored<br>(Not in D or E)</span></th>
+          <th style="width:76pt">G<br><span style="font-weight:normal">Total Completed<br>&amp; Stored to Date<br>(D+E+F)</span></th>
+          <th style="width:36pt">H<br><span style="font-weight:normal">%<br>(G÷C)</span></th>
+          <th style="width:72pt">I<br><span style="font-weight:normal">Balance to<br>Finish<br>(C-G)</span></th>
+          <th style="width:60pt">Retainage<br>This Period</th>
+        </tr>
+      </thead>
+      <tbody id="print-g703-body"></tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="2" class="l">GRAND TOTAL — CONTRACT</td>
+          <td class="r" id="pr-t-c">—</td>
+          <td class="r" id="pr-t-d">—</td>
+          <td class="r" id="pr-t-e">—</td>
+          <td class="r" id="pr-t-f">—</td>
+          <td class="r" id="pr-t-g">—</td>
+          <td></td>
+          <td class="r" id="pr-t-i">—</td>
+          <td class="r" id="pr-t-ret">—</td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="aia-page-num">Page 2 of <span id="pr-g703-total-pages">2</span> &nbsp;|&nbsp; AIA G703 Continuation Sheet &nbsp;|&nbsp; LMG General Contractors, LLC</div>
+  </div>
+
+</div><!-- end tab-draw -->
+
+<!-- ══════ TAB 4: HISTORY ══════ -->
+<div id="tab-history" class="section">
+  <div class="flex-between">
+    <div><div class="page-title">Draw History</div><div class="page-sub">All submitted draw requests with running balance.</div></div>
+    <button class="btn btn-danger btn-sm no-print" onclick="resetAll()">⚠ Reset All Data</button>
+  </div>
+  <div id="hist-stats" class="stat-grid"></div>
+  <div id="hist-progress" style="display:none" class="card">
+    <div class="card-title">Project Draw Progress</div>
+    <div id="hist-prog-inner"></div>
+  </div>
+  <div id="hist-list"></div>
+  <div id="hist-empty" class="empty" style="display:none"><p>No draws submitted yet.</p></div>
+</div>
+
+
+<!-- ══════ TAB 5: PROJECTS ══════ -->
+<div id="tab-projects" class="section">
+  <div class="flex-between">
+    <div><div class="page-title">All Projects</div><div class="page-sub">All LMG draw projects — permanently saved to GitHub. Any PM, any device.</div></div>
+    <div class="flex no-print">
+      <button class="btn btn-ghost btn-sm" onclick="refreshProjects()">↻ Refresh</button>
+      <button class="btn btn-primary" onclick="newProject()">+ New Project</button>
+    </div>
+  </div>
+
+  <!-- PM Setup -->
+  <div class="card" style="background:#fff8f5;border-color:#ff5e14">
+    <div class="card-title">Setup — Enter Once Per Device</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="pm-name" placeholder="e.g. Adrian, Ricardo, Angela" oninput="savePMName()">
+        <div class="help">All your edits are tagged with your name.</div>
+      </div>
+      <div class="form-group">
+        <label>GitHub Access Token</label>
+        <input type="password" id="pm-token" placeholder="ghp_xxxx or gho_xxxx" oninput="saveToken()">
+        <div class="help">Ask Adrian for the LMG team token. Stored only on this device.</div>
+      </div>
+      <div class="form-group" style="justify-content:flex-end">
+        <button class="btn btn-primary" onclick="testConnection()" style="align-self:flex-end">Test Connection</button>
+      </div>
+    </div>
+    <div id="conn-test-result" style="margin-top:12px;font-size:13px"></div>
+  </div>
+
+  <!-- Sync Status -->
+  <div class="card">
+    <div class="card-title">Sync Status</div>
+    <div id="sync-status-box" style="font-size:13px;color:#666;padding:8px 0">Checking connection...</div>
+  </div>
+
+  <!-- Project List -->
+  <div id="project-list-wrap">
+    <div class="empty" id="projects-loading"><p>Loading projects from GitHub...</p></div>
+  </div>
+</div>
+
+</div><!-- .main -->
+<input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let S = {
+  project:{name:'',location:'',owner:'',ownerAddr:'',architect:'',archAddr:'',lender:'',contractNo:'',contractDate:'',completionDate:'',contractSum:'',retainage:'10',retainageStored:'10'},
+  changeOrders:[],sov:[],applications:[],_sovId:1,_coId:1
+};
+const STORE_KEY='***';
+const $=id=>document.getElementById(id);
+const fmt=n=>'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct=n=>(n||0).toFixed(1)+'%';
+const today=()=>new Date().toISOString().split('T')[0];
+const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const uid=()=>'sov'+(S._sovId++);
+const coid=()=>'co'+(S._coId++);
+
+function gv(id){const e=$(id);return e?e.value:'';}
+function sv(id,v){const e=$(id);if(e)e.value=(v!=null)?v:'';}
+function st(id,v){const e=$(id);if(e)e.textContent=(v!=null)?v:'';}
+
+const contractSum=()=>parseFloat(S.project.contractSum)||0;
+const coTotal=()=>S.changeOrders.reduce((s,co)=>s+(parseFloat(co.amount)||0),0);
+const csd=()=>contractSum()+coTotal();
+const retPct=()=>parseFloat(S.project.retainage)||0;
+const retSPct=()=>parseFloat(S.project.retainageStored)||0;
+
+function prevCompletedFor(sovId){
+  const apps=S.applications.filter(a=>a.status==='submitted'||a.status==='approved');
+  if(!apps.length)return 0;
+  const last=apps[apps.length-1];
+  const li=last.lineItems.find(x=>x.sovId===sovId);
+  if(!li)return 0;
+  const sov=S.sov.find(s=>s.id===sovId);
+  if(!sov)return 0;
+  return (parseFloat(li.pct)||0)/100*(parseFloat(sov.value)||0)+(parseFloat(li.stored)||0);
+}
+function totalPrevCertified(){
+  return S.applications.filter(a=>a.status==='submitted'||a.status==='approved').reduce((s,a)=>s+(parseFloat(a.paymentDue)||0),0);
+}
+
+function persist(){localStorage.setItem(STORE_KEY,JSON.stringify(S));}
+function hydrate(){try{const d=localStorage.getItem(STORE_KEY);if(d)S=JSON.parse(d);}catch(e){}}
+
+// ── TABS ──────────────────────────────────────
+function showTab(t){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  $('tab-'+t).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b=>{if(b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+t+"'"))b.classList.add('active');});
+  if(t==='draw')initDrawTab();
+  if(t==='history')renderHistory();
+  if(t==='sov')renderSOV();
+}
+
+// ── PROJECT SETUP ──────────────────────────────
+function saveProject(){
+  S.project.name=gv('p-name');S.project.location=gv('p-location');
+  S.project.owner=gv('p-owner');S.project.ownerAddr=gv('p-owner-addr');
+  S.project.architect=gv('p-architect');S.project.archAddr=gv('p-arch-addr');
+  S.project.lender=gv('p-lender');S.project.contractNo=gv('p-contract-no');
+  S.project.contractDate=gv('p-contract-date');S.project.completionDate=gv('p-completion-date');
+  S.project.contractSum=gv('p-contract-sum');
+  S.project.retainage=gv('p-retainage');S.project.retainageStored=gv('p-retainage-stored');
+  persist();updateDashboard();alert('Saved ✓');
+}
+function loadProject(){
+  sv('p-name',S.project.name);sv('p-location',S.project.location);
+  sv('p-owner',S.project.owner);sv('p-owner-addr',S.project.ownerAddr);
+  sv('p-architect',S.project.architect);sv('p-arch-addr',S.project.archAddr);
+  sv('p-lender',S.project.lender);sv('p-contract-no',S.project.contractNo);
+  sv('p-contract-date',S.project.contractDate);sv('p-completion-date',S.project.completionDate);
+  sv('p-contract-sum',S.project.contractSum);
+  sv('p-retainage',S.project.retainage||'10');sv('p-retainage-stored',S.project.retainageStored||'10');
+  updateDashboard();
+}
+function updateDashboard(){
+  S.project.contractSum=gv('p-contract-sum');S.project.retainage=gv('p-retainage');S.project.retainageStored=gv('p-retainage-stored');
+  persist();
+  const cs=contractSum(),co=coTotal(),total=cs+co;
+  const submitted=S.applications.filter(a=>a.status!=='draft');
+  const drawn=submitted.reduce((s,a)=>s+(parseFloat(a.paymentDue)||0),0);
+  st('ds-original',cs?fmt(cs):'—');st('ds-co',fmt(co));st('ds-sum',total?fmt(total):'—');
+  st('ds-count',submitted.length);st('ds-drawn',fmt(drawn));st('ds-balance',total?fmt(total-drawn):'—');
+}
+
+// ── CHANGE ORDERS ─────────────────────────────
+function addCO(){S.changeOrders.push({id:coid(),no:S.changeOrders.length+1,desc:'',date:'',amount:''});persist();renderCO();}
+function removeCO(i){S.changeOrders.splice(i,1);persist();renderCO();}
+function updateCO(i,f,v){S.changeOrders[i][f]=v;persist();renderCO();}
+function renderCO(){
+  const tbody=$('co-body'),empty=$('co-empty');
+  if(!S.changeOrders.length){tbody.innerHTML='';empty.style.display='block';st('co-total','$0.00');updateDashboard();return;}
+  empty.style.display='none';
+  tbody.innerHTML=S.changeOrders.map((co,i)=>`<tr>
+    <td><input value="${esc(co.no)}" onchange="updateCO(${i},'no',this.value)"></td>
+    <td><input value="${esc(co.desc)}" placeholder="Description" onchange="updateCO(${i},'desc',this.value)"></td>
+    <td><input type="date" value="${esc(co.date)}" onchange="updateCO(${i},'date',this.value)"></td>
+    <td><input type="number" value="${co.amount}" style="text-align:right" onchange="updateCO(${i},'amount',this.value)"></td>
+    <td class="c no-print"><button class="btn btn-danger btn-sm" onclick="removeCO(${i})">✕</button></td>
+  </tr>`).join('');
+  st('co-total',fmt(coTotal()));updateDashboard();
+}
+
+// ── SCHEDULE OF VALUES ─────────────────────────
+function addSOVRow(d='',v=''){S.sov.push({id:uid(),item:S.sov.length+1,desc:d,value:v});persist();renderSOV();}
+function removeSOV(i){if(!confirm('Remove?'))return;S.sov.splice(i,1);S.sov.forEach((r,j)=>r.item=j+1);persist();renderSOV();}
+function updateSOV(i,f,v){S.sov[i][f]=v;persist();renderSOV();}
+function loadDefaultCSI(){
+  if(S.sov.length&&!confirm('Replace with CSI defaults?'))return;
+  const cs=contractSum();
+  const defs=[['01 — General Conditions & Requirements',.05],['02 — Site Work & Demolition',.03],['03 — Concrete',.08],['04 — Masonry',.02],['05 — Metals / Structural Steel',.06],['06 — Wood, Plastics & Composites',.08],['07 — Thermal & Moisture Protection',.04],['08 — Openings — Doors, Windows, Glazing',.05],['09 — Finishes — Flooring, Paint, Drywall',.10],['10 — Specialties',.02],['11 — Equipment',.02],['12 — Furnishings (FF&E)',.04],['13 — Special Construction',.01],['14 — Conveying Equipment / Elevators',.02],['21 — Fire Suppression',.02],['22 — Plumbing',.06],['23 — HVAC',.09],['26 — Electrical',.08],['28 — Communications & Security',.02],['31 — Site Utilities',.03],['32 — Landscaping & Exterior',.02],['00 — Contractor Overhead & Fee',.05]];
+  S.sov=[];S._sovId=1;
+  defs.forEach(([d,p])=>S.sov.push({id:uid(),item:S.sov.length+1,desc:d,value:Math.round(cs*p)}));
+  persist();renderSOV();
+}
+function renderSOV(){
+  const tbody=$('sov-body'),cs=contractSum();
+  if(!S.sov.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:32px;color:#ccc">No items. Click "+ Add Line Item" or "Load Default CSI".</td></tr>';return;}
+  const total=S.sov.reduce((s,r)=>s+(parseFloat(r.value)||0),0);
+  tbody.innerHTML=S.sov.map((r,i)=>`<tr>
+    <td>${r.item}</td>
+    <td><input value="${esc(r.desc)}" placeholder="Description" onchange="updateSOV(${i},'desc',this.value)"></td>
+    <td><input type="number" value="${r.value}" style="text-align:right" onchange="updateSOV(${i},'value',this.value)"></td>
+    <td class="c auto">${total?pct((parseFloat(r.value)||0)/total*100):'—'}</td>
+    <td class="c no-print"><button class="btn btn-danger btn-sm" onclick="removeSOV(${i})">✕</button></td>
+  </tr>`).join('');
+  st('sov-total',fmt(total));st('sov-pct-total',cs?pct(total/cs*100):'100%');
+  const dr=$('sov-diff-row'),dm=$('sov-diff-msg'),diff=cs-total;
+  if(cs&&Math.abs(diff)>0.01){dr.style.display='';dm.innerHTML=`<span style="color:${diff>0?'#e65100':'#d32f2f'};font-weight:700">⚠ SOV is ${fmt(Math.abs(diff))} ${diff>0?'UNDER':'OVER'} contract sum ${fmt(cs)}</span>`;}
+  else if(cs){dr.style.display='';dm.innerHTML=`<span style="color:#2e7d32;font-weight:700">✓ Matches contract sum ${fmt(total)}</span>`;}
+  else{dr.style.display='none';}
+}
+
+// ── DRAW TAB ──────────────────────────────────
+function initDrawTab(){
+  sv('d-project',[S.project.name,S.project.location].filter(Boolean).join(' — '));
+  sv('d-owner',S.project.owner);sv('d-architect',S.project.architect);
+  const maxNo=S.applications.length?Math.max(...S.applications.map(a=>parseInt(a.appNo)||0)):0;
+  sv('d-appno',maxNo+1);
+  if(!gv('d-appdate'))sv('d-appdate',today());
+  renderDrawTable();calcDraw();
+}
+function renderDrawTable(){
+  const tbody=$('draw-body'),noSOV=$('draw-no-sov');
+  if(!S.sov.length){tbody.innerHTML='';noSOV.style.display='block';return;}
+  noSOV.style.display='none';
+  tbody.innerHTML=S.sov.map(r=>{
+    const prev=prevCompletedFor(r.id),v=parseFloat(r.value)||0,prevPct=v?prev/v*100:0;
+    return `<tr>
+      <td>${r.item}</td><td>${esc(r.desc)}</td><td class="r">${fmt(v)}</td>
+      <td class="r auto" id="dr-d-${r.id}">${fmt(prev)}</td>
+      <td><input type="number" id="dr-pct-${r.id}" value="${prevPct.toFixed(1)}" min="${prevPct.toFixed(1)}" max="100" step="0.5" style="text-align:right;font-weight:700;color:#ff5e14" oninput="calcDraw()"></td>
+      <td class="r auto" id="dr-e-${r.id}" style="color:#ff5e14;font-weight:700">—</td>
+      <td><input type="number" id="dr-f-${r.id}" value="0" min="0" step="100" style="text-align:right" oninput="calcDraw()"></td>
+      <td class="r auto" id="dr-g-${r.id}">—</td>
+      <td class="c auto" id="dr-h-${r.id}">—</td>
+      <td class="r auto" id="dr-i-${r.id}">—</td>
+      <td class="r auto" id="dr-ret-${r.id}">—</td>
+    </tr>`;
+  }).join('');
+}
+
+window._g8=0;
+function calcDraw(){
+  const ret=retPct()/100,retS=retSPct()/100;
+  let tC=0,tD=0,tE=0,tF=0,tG=0,tI=0,tRet=0;
+  S.sov.forEach(r=>{
+    const v=parseFloat(r.value)||0,pEl=$('dr-pct-'+r.id),fEl=$('dr-f-'+r.id);
+    if(!pEl)return;
+    const pv=parseFloat(pEl.value)||0,f=parseFloat(fEl?.value)||0;
+    const prev=prevCompletedFor(r.id);
+    const completedToDate=v*pv/100; // column G component (completed)
+    const G=completedToDate+f;
+    const E=Math.max(0,completedToDate+f-prev);
+    const D=prev;
+    const I=v-G;
+    const retVal=completedToDate*ret+f*retS;
+    st('dr-d-'+r.id,fmt(D));st('dr-e-'+r.id,fmt(E));st('dr-g-'+r.id,fmt(G));
+    st('dr-h-'+r.id,v?pct(G/v*100):'—');st('dr-i-'+r.id,fmt(I));st('dr-ret-'+r.id,fmt(retVal));
+    tC+=v;tD+=D;tE+=E;tF+=f;tG+=G;tI+=I;tRet+=retVal;
+  });
+  st('t-c',fmt(tC));st('t-d',fmt(tD));st('t-e',fmt(tE));st('t-f',fmt(tF));st('t-g',fmt(tG));st('t-i',fmt(tI));st('t-ret',fmt(tRet));
+
+  const g1=contractSum(),g2=coTotal(),g3=g1+g2;
+  const g5a=tD*ret+tE*ret, // retainage on completed work (D+E columns)
+        g5b=tF*retS, g5=g5a+g5b,g6=tG-g5,g7=totalPrevCertified(),g8=g6-g7,g9=g3-g6;
+
+  const appNo=gv('d-appno')||'1';
+  st('g702-appno-label','Application #'+appNo);
+
+  // Screen G702 lines
+  const lines=[
+    {n:'1.',l:'Original Contract Sum',v:g1?fmt(g1):'—',cls:''},
+    {n:'2.',l:'Net Change by Change Orders',v:fmt(g2),cls:''},
+    {n:'3.',l:'Contract Sum to Date (Line 1 ± 2)',v:g3?fmt(g3):'—',cls:'bold'},
+    {n:'4.',l:'Total Completed & Stored to Date (Col G on G703)',v:fmt(tG),cls:''},
+    {n:'5a.',l:`${retPct()}% of Completed Work (Cols D+E on G703)`,v:fmt(g5a),cls:'sub'},
+    {n:'5b.',l:`${retSPct()}% of Stored Material (Col F on G703)`,v:fmt(g5b),cls:'sub'},
+    {n:'5.',l:'Total Retainage (5a + 5b)',v:fmt(g5),cls:'bold'},
+    {n:'6.',l:'Total Earned Less Retainage (Line 4 − 5)',v:fmt(g6),cls:'bold'},
+    {n:'7.',l:'Less Previous Certificates for Payment',v:fmt(g7),cls:''},
+    {n:'8.',l:'CURRENT PAYMENT DUE (Line 6 − 7)',v:fmt(g8),cls:'payout'},
+    {n:'9.',l:'Balance to Finish, Including Retainage (Line 3 − 6)',v:fmt(g9),cls:''}
+  ];
+  $('g702-lines').innerHTML=lines.map(({n,l,v,cls})=>`
+    <div style="display:flex;align-items:center;padding:8px 16px;border-bottom:1px solid #f0f0f0;font-size:13px;
+      ${cls==='payout'?'background:#ff5e14;':''}${cls==='bold'?'background:#f5f5f7;':''}" >
+      <div style="width:28px;font-weight:700;font-size:11px;color:${cls==='payout'?'rgba(255,255,255,.7)':'#aaa'}">${n}</div>
+      <div style="flex:1;${cls==='payout'?'color:#fff;font-weight:700;font-size:14px;':''}${cls==='sub'?'padding-left:16px;color:#666;font-size:12px;':''}">${l}</div>
+      <div style="font-weight:700;font-size:${cls==='payout'?'18':'13'}px;min-width:140px;text-align:right;font-variant-numeric:tabular-nums;${cls==='payout'?'color:#fff;':''}">${v}</div>
+    </div>`).join('');
+
+  // Update print G702
+  st('pr-g1',g1?fmt(g1):'—');st('pr-g2',fmt(g2));st('pr-g3',g3?fmt(g3):'—');st('pr-g4',fmt(tG));
+  $('pr-g5a-lbl').textContent=`${retPct()}% of Completed Work (Cols D+E on G703)`;
+  $('pr-g5b-lbl').textContent=`${retSPct()}% of Stored Material (Col F on G703)`;
+  st('pr-g5a',fmt(g5a));st('pr-g5b',fmt(g5b));st('pr-g5',fmt(g5));
+  st('pr-g6',fmt(g6));st('pr-g7',fmt(g7));st('pr-g8',fmt(g8));st('pr-g9',fmt(g9));
+  st('pr-amount-certified','');
+
+  // Print header fields
+  st('pr-owner-block',(S.project.owner||'—')+'\n'+(S.project.ownerAddr||''));
+  st('pr-project-block',(S.project.name||'—')+'\n'+(S.project.location||''));
+  st('pr-architect-block',(S.project.architect||'—')+'\n'+(S.project.archAddr||''));
+  st('pr-appno',appNo);st('pr-period-to',gv('d-to')||'—');st('pr-contract-date',S.project.contractDate||'—');
+  st('pr-contract-no',S.project.contractNo||'—');
+  st('pr-g703-appno',appNo);st('pr-g703-period',gv('d-to')||'—');st('pr-g703-project',S.project.name||'—');
+
+  // Update print G703 table
+  const g703body=$('print-g703-body');
+  if(g703body){
+    g703body.innerHTML=S.sov.map(r=>{
+      const v=parseFloat(r.value)||0,pEl=$('dr-pct-'+r.id),fEl=$('dr-f-'+r.id);
+      if(!pEl)return'';
+      const pv=parseFloat(pEl.value)||0,f=parseFloat(fEl?.value)||0;
+      const D=prevCompletedFor(r.id),completedToDate=v*pv/100,G=completedToDate+f;
+      const E=Math.max(0,G-D),I=v-G,retVal=completedToDate*ret+f*retS;
+      return `<tr>
+        <td class="c">${r.item}</td>
+        <td>${esc(r.desc)}</td>
+        <td class="r">${fmt(v)}</td>
+        <td class="r">${fmt(D)}</td>
+        <td class="r">${fmt(E)}</td>
+        <td class="r">${fmt(f)}</td>
+        <td class="r">${fmt(G)}</td>
+        <td class="c">${v?pct(G/v*100):'—'}</td>
+        <td class="r">${fmt(I)}</td>
+        <td class="r">${fmt(retVal)}</td>
+      </tr>`;
+    }).join('');
+    st('pr-t-c',fmt(tC));st('pr-t-d',fmt(tD));st('pr-t-e',fmt(tE));st('pr-t-f',fmt(tF));
+    st('pr-t-g',fmt(tG));st('pr-t-i',fmt(tI));st('pr-t-ret',fmt(tRet));
+  }
+  window._g8=g8;
+}
+
+function submitDraw(){
+  if(!S.sov.length){alert('Set up Schedule of Values first.');return;}
+  const appNo=gv('d-appno'),appDate=gv('d-appdate');
+  if(!appNo||!appDate){alert('Application Number and Date required.');return;}
+  if(!confirm('Submit Draw #'+appNo+' for '+fmt(window._g8||0)+'?'))return;
+  const lineItems=S.sov.map(r=>({sovId:r.id,pct:parseFloat(gv('dr-pct-'+r.id))||0,stored:parseFloat(gv('dr-f-'+r.id))||0}));
+  S.applications.push({id:'app'+Date.now(),appNo,appDate,periodFrom:gv('d-from'),periodTo:gv('d-to'),lineItems,status:'submitted',paymentDue:window._g8||0,submittedAt:new Date().toISOString()});
+  persist();alert('✓ Draw #'+appNo+' submitted — '+fmt(window._g8||0));showTab('history');
+}
+
+// ── HISTORY ───────────────────────────────────
+function renderHistory(){
+  const list=$('hist-list'),empty=$('hist-empty'),stats=$('hist-stats'),prog=$('hist-progress');
+  const submitted=S.applications.filter(a=>a.status!=='draft');
+  const cs=csd(),drawn=submitted.reduce((s,a)=>s+(parseFloat(a.paymentDue)||0),0);
+  const remaining=cs-drawn,pctDone=cs?drawn/cs*100:0;
+  stats.innerHTML=`<div class="stat-box"><div class="sl">Contract Sum</div><div class="sv">${cs?fmt(cs):'—'}</div></div><div class="stat-box"><div class="sl">Total Drawn</div><div class="sv">${fmt(drawn)}</div></div><div class="stat-box orange"><div class="sl">Balance Remaining</div><div class="sv">${cs?fmt(remaining):'—'}</div></div><div class="stat-box dark"><div class="sl">% Complete</div><div class="sv">${pct(pctDone)}</div></div>`;
+  if(!submitted.length){list.innerHTML='';empty.style.display='block';prog.style.display='none';return;}
+  empty.style.display='none';prog.style.display='block';
+  $('hist-prog-inner').innerHTML=`<div class="progress-label"><span>Drawn: ${fmt(drawn)}</span><span>Remaining: ${fmt(remaining)}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,pctDone)}%"></div></div><div class="help" style="font-size:11px;color:#aaa;margin-top:4px">${pct(pctDone)} of ${fmt(cs)} — ${submitted.length} draw application${submitted.length!==1?'s':''}</div>`;
+  list.innerHTML=[...submitted].reverse().map(a=>`<div class="draw-card"><div class="dn">Draw #${a.appNo}</div><div class="dd"><div class="dt">${S.project.name||'—'}</div><div class="dp">${a.appDate||''}${a.periodFrom||a.periodTo?' | Period: '+(a.periodFrom||'—')+' → '+(a.periodTo||'—'):''}</div></div><div style="margin:0 8px"><span class="badge badge-${a.status}">${a.status}</span></div><div class="da">${fmt(a.paymentDue)}</div><div class="dact no-print">${a.status==='submitted'?`<button class="btn btn-green btn-sm" onclick="approveApp('${a.id}')">✓ Approve</button>`:''}<button class="btn btn-ghost btn-sm" onclick="reloadDraw('${a.id}')">View</button><button class="btn btn-danger btn-sm" onclick="deleteApp('${a.id}')">✕</button></div></div>`).join('');
+}
+function approveApp(id){const a=S.applications.find(x=>x.id===id);if(a){a.status='approved';persist();renderHistory();}}
+function deleteApp(id){if(!confirm('Delete this draw?'))return;S.applications=S.applications.filter(x=>x.id!==id);persist();renderHistory();}
+function reloadDraw(id){
+  const a=S.applications.find(x=>x.id===id);if(!a){alert('Not found');return;}
+  showTab('draw');
+  setTimeout(()=>{sv('d-appno',a.appNo);sv('d-appdate',a.appDate);sv('d-from',a.periodFrom);sv('d-to',a.periodTo);
+    a.lineItems.forEach(li=>{const p=$('dr-pct-'+li.sovId),f=$('dr-f-'+li.sovId);if(p)p.value=li.pct;if(f)f.value=li.stored;});calcDraw();},100);
+}
+
+// ── EXPORT/IMPORT/RESET ─────────────────────────
+function exportJSON(){const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='LMG_Draw_'+(S.project.name||'project').replace(/\s+/g,'-')+'_'+today()+'.json';a.click();}
+function importJSON(){$('import-file').click();}
+function handleImport(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{try{const data=JSON.parse(ev.target.result);if(!confirm('Import replaces all data. Continue?'))return;S=data;persist();loadProject();renderCO();renderSOV();renderHistory();alert('Imported ✓');}catch(err){alert('Invalid JSON.');}};reader.readAsText(file);}
+function resetAll(){if(!confirm('⚠ Delete ALL project data?'))return;if(!confirm('Cannot be undone. Confirm?'))return;localStorage.removeItem(STORE_KEY);location.reload();}
+
+
+
+// ═══════════════════════════════════════════════
+// MULTI-USER GITHUB SYNC
+// ═══════════════════════════════════════════════
+const TOOL = 'draw';
+let PM_NAME = localStorage.getItem('lmg_pm_name') || '';
+let GH_SHA = null;   // current file SHA on GitHub
+let syncTimeout = null;
+let pullInterval = null;
+let allProjects = [];
+
+function savePMName(){
+  PM_NAME = $('pm-name').value;
+  localStorage.setItem('lmg_pm_name', PM_NAME);
+}
+
+function setSyncStatus(status, msg){
+  const dot = $('sync-dot'), lbl = $('sync-label');
+  if(!dot) return;
+  const colors = { synced:'#2e7d32', syncing:'#ff9800', error:'#d32f2f', offline:'#aaa' };
+  dot.style.background = colors[status] || '#aaa';
+  if(lbl) lbl.textContent = msg || status;
+  const box = $('sync-status-box');
+  if(box) box.innerHTML = '<span style="color:'+colors[status]+';font-weight:700">' + (msg||status) + '</span>';
+}
+
+// Auto-sync: called after every meaningful change (debounced 2s)
+function scheduleSync(){
+  if(syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(()=>pushToGitHub(), 2000);
+}
+
+async function pushToGitHub(){
+  if(!S.project.name){ setSyncStatus('offline','Enter project name to sync'); return; }
+  if(!PM_NAME){ setSyncStatus('error','Set your PM name in Projects tab'); return; }
+  setSyncStatus('syncing','Saving...');
+  // Ensure project has an ID
+  if(!S.projectId) S.projectId = LMGSync.genId();
+  try {
+    const result = await LMGSync.saveProject(TOOL, S.projectId, S, GH_SHA, PM_NAME);
+    if(result.sha){
+      GH_SHA = result.sha;
+      setSyncStatus('synced','Saved ✓ ' + new Date().toLocaleTimeString());
+      persist(); // also keep localStorage
+    } else {
+      setSyncStatus('error','Save failed — check connection');
+    }
+  } catch(e){ setSyncStatus('error','Error: '+e.message); }
+}
+
+async function pullFromGitHub(){
+  if(!S.projectId) return;
+  try {
+    const result = await LMGSync.loadProject(TOOL, S.projectId);
+    if(!result) return;
+    if(result.sha === GH_SHA) return; // no change
+    // Newer version on GitHub — load it
+    const newData = result.data;
+    if(newData._lastModifiedBy && newData._lastModifiedBy !== PM_NAME){
+      S = { ...newData }; GH_SHA = result.sha;
+      persist();
+      loadProject(); renderCO(); renderSOV(); renderHistory();
+      setSyncStatus('synced', 'Updated by ' + newData._lastModifiedBy + ' ✓');
+    }
+  } catch(e){}
+}
+
+function startPullInterval(){
+  if(pullInterval) clearInterval(pullInterval);
+  pullInterval = setInterval(()=>pullFromGitHub(), 15000); // every 15 seconds
+}
+
+async function initGitHub(){
+  sv('pm-name', PM_NAME);
+const storedTok=localStorage.getItem('lmg_gh_token')||'';
+if($('pm-token'))$('pm-token').value=storedTok?'••••••••••••••••':'';
+  const online = await LMGSync.ping();
+  if(!online){ setSyncStatus('offline','GitHub offline — working locally'); return; }
+  // If current project has an ID, load latest from GitHub
+  if(S.projectId){
+    const result = await LMGSync.loadProject(TOOL, S.projectId);
+    if(result && result.sha !== GH_SHA){
+      S = { ...result.data }; GH_SHA = result.sha;
+      persist(); loadProject(); renderCO(); renderSOV();
+    }
+  }
+  setSyncStatus('synced','Connected ✓');
+  startPullInterval();
+  refreshProjects();
+}
+
+async function refreshProjects(){
+  const wrap = $('project-list-wrap');
+  if(!wrap) return;
+  wrap.innerHTML = '<div class="empty"><p>Loading...</p></div>';
+  allProjects = await LMGSync.listProjects(TOOL);
+  if(!allProjects.length){
+    wrap.innerHTML = '<div class="empty"><p>No projects yet. Click "+ New Project" to start.</p></div>';
+    return;
+  }
+  // Load project names from each file
+  const cards = await Promise.all(allProjects.map(async p => {
+    const d = await LMGSync.loadProject(TOOL, p.id);
+    const name = d?.data?.project?.name || p.id;
+    const draws = d?.data?.applications?.length || 0;
+    const sum = parseFloat(d?.data?.project?.contractSum)||0;
+    const mod = d?.data?._lastModified ? new Date(d.data._lastModified).toLocaleString() : '—';
+    const modBy = d?.data?._lastModifiedBy || '—';
+    const isCurrent = S.projectId === p.id;
+    return `<div class="draw-card" style="${isCurrent?'border-color:#ff5e14;background:#fff8f5;':''}">
+      <div class="dn">${draws} Draw${draws!==1?'s':''}</div>
+      <div class="dd">
+        <div class="dt" style="font-size:15px;font-weight:700">${esc(name)} ${isCurrent?'<span style="font-size:10px;color:#ff5e14;font-weight:700">● CURRENT</span>':''}</div>
+        <div class="dp">Contract: $${sum?sum.toLocaleString():'-'} &nbsp;|&nbsp; Last saved: ${mod} by ${esc(modBy)}</div>
+      </div>
+      <div class="dact no-print">
+        ${!isCurrent?`<button class="btn btn-ghost btn-sm" onclick="loadProjectFromGH('${p.id}')">Load →</button>`:'<button class="btn btn-dark btn-sm" disabled>Active</button>'}
+      </div>
+    </div>`;
+  }));
+  wrap.innerHTML = cards.join('');
+}
+
+async function loadProjectFromGH(projectId){
+  if(!confirm('Load this project? Current unsaved changes will be synced first.'))return;
+  await pushToGitHub(); // save current first
+  const result = await LMGSync.loadProject(TOOL, projectId);
+  if(!result){ alert('Could not load project.'); return; }
+  S = { ...result.data }; GH_SHA = result.sha;
+  persist(); loadProject(); renderCO(); renderSOV(); renderHistory();
+  setSyncStatus('synced','Loaded ✓ ' + (S.project?.name||''));
+  showTab('draw');
+}
+
+
+function saveToken(){
+  const t = $('pm-token')?.value||'';
+  if(t) LMGSync.setToken(t);
+}
+
+async function testConnection(){
+  const result = $('conn-test-result');
+  if(result) result.innerHTML = '<span style="color:#ff9800">Testing...</span>';
+  const ok = await LMGSync.ping();
+  if(result) result.innerHTML = ok
+    ? '<span style="color:#2e7d32;font-weight:700">✓ Connected — you are good to go!</span>'
+    : '<span style="color:#d32f2f;font-weight:700">✗ Failed — check your token and try again.</span>';
+  if(ok){ setSyncStatus('synced','Connected ✓'); startPullInterval(); refreshProjects(); }
+}
+
+function newProject(){
+  if(!confirm('Start a new project? Current project will be saved to GitHub first.'))return;
+  pushToGitHub().then(()=>{
+    S = {
+      project:{name:'',location:'',owner:'',ownerAddr:'',architect:'',archAddr:'',lender:'',contractNo:'',contractDate:'',completionDate:'',contractSum:'',retainage:'10',retainageStored:'10'},
+      changeOrders:[],sov:[],applications:[],_sovId:1,_coId:1,
+      projectId: LMGSync.genId()
+    };
+    GH_SHA = null;
+    persist(); loadProject(); renderCO(); renderSOV(); renderHistory();
+    setSyncStatus('synced','New project ready');
+    showTab('setup');
+  });
+}
+
+// Hook into existing save/submit functions
+const _origSaveProject = typeof saveProject !== 'undefined' ? saveProject : null;
+const _origSubmitDraw = typeof submitDraw !== 'undefined' ? submitDraw : null;
+
+// Override persist to also schedule GitHub sync
+const _origPersist = persist;
+function persist(){
+  _origPersist && _origPersist();
+  scheduleSync();
+}
+
+// ── INIT ─────────────────────────────────────
+hydrate();loadProject();renderCO();renderSOV();
+if(!S.project.contractDate)sv('p-contract-date',today());
+if(!S.projectId)S.projectId=LMGSync.genId();
+if(typeof LMGSync!=='undefined')initGitHub();
+// Note: GitHub token stored in localStorage per device, never in source code.
+</script>
+</body>
+</html>

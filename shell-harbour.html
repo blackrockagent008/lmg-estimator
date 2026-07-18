@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Loading Shell Harbour Plaza...</title>
+<style>
+body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f7;}
+.box{text-align:center;color:#111;}
+.logo{font-size:20px;font-weight:700;margin-bottom:16px;}
+.logo span{color:#ff5e14;}
+p{font-size:14px;color:#888;}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">LMG <span>GC</span></div>
+  <p>Loading Shell Harbour Plaza — Job #9...</p>
+</div>
+<script>
+const data = {
+  project: {
+    name: "Shell Harbour Plaza",
+    location: "1200 TX-100, Port Isabel, TX 78578",
+    owner: "",
+    architect: "",
+    lender: "",
+    contractNo: "Job #9",
+    contractDate: "",
+    completionDate: "",
+    contractSum: "1681655.25",
+    retainage: "10",
+    retainageStored: "10"
+  },
+  changeOrders: [],
+  sov: [
+    {id:"sov1",  item:1,  desc:"01 — Architectural Fees, Labor",                       value:31500},
+    {id:"sov2",  item:2,  desc:"01 — Construction Scaffolding & Platforms, Materials",  value:20000},
+    {id:"sov3",  item:3,  desc:"02 — Site Demolition, Labor",                           value:10000},
+    {id:"sov4",  item:4,  desc:"02 — Site Amenities / Parking Lot",                     value:52460},
+    {id:"sov5",  item:5,  desc:"03 — Floor Development / Staircase",                    value:98850},
+    {id:"sov6",  item:6,  desc:"04 — Stone / Site Concrete",                            value:18720},
+    {id:"sov7",  item:7,  desc:"05 — Metal Joists, Equipment",                          value:15000},
+    {id:"sov8",  item:8,  desc:"05 — Structural Steel, Equipment",                      value:20000},
+    {id:"sov9",  item:9,  desc:"05 — Cold-Formed Metal Framing, Equipment",             value:35000},
+    {id:"sov10", item:10, desc:"07 — Thermal Protection / Insulation, Equipment",       value:75000},
+    {id:"sov11", item:11, desc:"07 — Roof Specialties & Accessories / Roof System",     value:88025},
+    {id:"sov12", item:12, desc:"07 — Fire & Smoke Protection, Equipment",               value:72500},
+    {id:"sov13", item:13, desc:"07 — Fire & Smoke Protection, Labor",                   value:30000},
+    {id:"sov14", item:14, desc:"09 — Finish / Stucco",                                  value:138000},
+    {id:"sov15", item:15, desc:"15 — Basic Mechanical Materials & Methods",             value:76925.25},
+    {id:"sov16", item:16, desc:"15 — Plumbing, Labor",                                  value:149675},
+    {id:"sov17", item:17, desc:"23 — HVAC, Equipment",                                  value:140000},
+    {id:"sov18", item:18, desc:"23 — HVAC, Labor",                                      value:90000},
+    {id:"sov19", item:19, desc:"26 — Electrical, Interior",                             value:80000},
+    {id:"sov20", item:20, desc:"26 — Electrical, Equipment",                            value:280000},
+    {id:"sov21", item:21, desc:"26 — Electrical, Labor",                                value:160000}
+  ],
+  applications: [],
+  _sovId: 22,
+  _coId: 1
+};
+localStorage.setItem('***', JSON.stringify(data));
+window.location.href = 'draw-request.html';
+</script>
+</body>
+</html>
