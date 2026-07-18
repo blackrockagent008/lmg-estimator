@@ -4,6 +4,149 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LMG Master Estimator — Commercial Construction</title>
+<script src="lmg-sync.js">
+
+// ═══════════════════════════════════════════════
+// GITHUB SYNC OVERRIDE — replaces dead estimator.lmg-gc.com API
+// Uses lmg-sync.js connected to lmg-projects-data private repo
+// ═══════════════════════════════════════════════
+const GH_TOOL_EST = 'estimator';
+let ghShaMap = {}; // projectId → current GitHub SHA
+let estSyncTimer = null;
+
+function getGHToken(){ return LMGSync && LMGSync.hasToken ? LMGSync.hasToken() : false; }
+function getPMName(){ return LMG_USER ? LMG_USER.name || LMG_USER.username : 'PM'; }
+
+function getProjectGHSha(id){ return ghShaMap[id] || null; }
+function setProjectGHSha(id, sha){ ghShaMap[id] = sha; }
+
+// Override serverSave — push to GitHub instead of dead PHP API
+async function serverSave(id, state){
+  if(!getGHToken()) return;
+  try{
+    const sha = getProjectGHSha(id);
+    const result = await LMGSync.saveProject(GH_TOOL_EST, id, state, sha, getPMName());
+    if(result && result.sha){ setProjectGHSha(id, result.sha); setSaveStatus('server'); }
+    else { setSaveStatus('local'); }
+  }catch(e){ console.warn('GH save failed:', e); setSaveStatus('local'); }
+}
+
+// Override serverLoad — pull from GitHub instead of dead PHP API
+async function serverLoad(id){
+  if(!getGHToken()) return null;
+  try{
+    const result = await LMGSync.loadProject(GH_TOOL_EST, id);
+    if(result && result.data){ setProjectGHSha(id, result.sha); return result.data; }
+    return null;
+  }catch(e){ return null; }
+}
+
+// Override serverList — list from GitHub
+async function serverList(){
+  if(!getGHToken()) return {projects:[]};
+  try{
+    const files = await LMGSync.listProjects(GH_TOOL_EST);
+    const projects = await Promise.all(files.map(async f => {
+      const d = await LMGSync.loadProject(GH_TOOL_EST, f.id);
+      if(d && d.data){ setProjectGHSha(f.id, d.sha); return { id: f.id, ...d.data }; }
+      return null;
+    }));
+    return { projects: projects.filter(Boolean) };
+  }catch(e){ return {projects:[]}; }
+}
+
+// Override serverDelete — remove from GitHub
+async function serverDelete(id){
+  // GitHub API requires file SHA to delete — mark as archived instead
+  try{
+    const result = await LMGSync.loadProject(GH_TOOL_EST, id);
+    if(result && result.data){
+      result.data._archived = true;
+      await LMGSync.saveProject(GH_TOOL_EST, id, result.data, result.sha, getPMName());
+    }
+  }catch(e){}
+}
+
+// Auto-pull every 15s — check if another PM updated the current project
+async function ghAutoPull(){
+  if(!currentProjectId || !getGHToken()) return;
+  try{
+    const result = await LMGSync.loadProject(GH_TOOL_EST, currentProjectId);
+    if(!result) return;
+    const sha = getProjectGHSha(currentProjectId);
+    if(result.sha === sha) return; // no change
+    const modBy = result.data?._lastModifiedBy;
+    if(modBy && modBy !== getPMName()){
+      // Another PM updated — reload
+      setProjectGHSha(currentProjectId, result.sha);
+      S = applyStateMigrations(result.data) || getDefaultState();
+      init();
+      setSaveStatus('server');
+      console.log('Auto-updated by', modBy);
+    }
+  }catch(e){}
+}
+
+// Set auto-pull interval on startup
+(function initGHSync(){
+  // If LMGSync is available and token is set, start pulling
+  if(typeof LMGSync !== 'undefined'){
+    setInterval(ghAutoPull, 15000);
+    // Add GitHub token field to the PM (login) tab if not already present
+    const pmTab = document.getElementById('tab-pm');
+    if(pmTab){
+      const ghDiv = document.createElement('div');
+      ghDiv.style.cssText = 'background:#1a1a1a;border:1px solid #ff5e14;padding:20px;margin-top:20px;';
+      ghDiv.innerHTML = \`
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#ff5e14;margin-bottom:12px">GitHub Project Storage</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end">
+          <div>
+            <div style="font-size:11px;color:#888;margin-bottom:4px">GITHUB ACCESS TOKEN (enter once per device)</div>
+            <input id="gh-token-input" type="password" placeholder="ghp_xxxx or gho_xxxx"
+              style="width:100%;background:#111;border:1px solid #333;color:#fff;padding:8px;font-size:13px"
+              oninput="if(this.value)LMGSync.setToken(this.value)">
+          </div>
+          <div>
+            <div style="font-size:11px;color:#888;margin-bottom:4px">STATUS</div>
+            <div id="gh-sync-status" style="font-size:12px;color:#666;padding:9px 0">Not connected</div>
+          </div>
+          <button onclick="testGHConnection()"
+            style="background:#ff5e14;color:#fff;border:none;padding:9px 16px;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">
+            Test →
+          </button>
+        </div>
+        <div style="font-size:11px;color:#555;margin-top:8px">All projects auto-save to GitHub every 2 seconds. Any PM can access from any device.</div>
+      \`;
+      pmTab.appendChild(ghDiv);
+    }
+    // Load existing token into field on next tick
+    setTimeout(()=>{
+      const inp = document.getElementById('gh-token-input');
+      if(inp && LMGSync.hasToken()) inp.value = '••••••••••••••••';
+    }, 500);
+  }
+})();
+
+async function testGHConnection(){
+  const status = document.getElementById('gh-sync-status');
+  if(status) status.innerHTML = '<span style="color:#ff9800">Testing...</span>';
+  const ok = await LMGSync.ping();
+  if(status) status.innerHTML = ok
+    ? '<span style="color:#2e7d32;font-weight:700">✓ Connected</span>'
+    : '<span style="color:#d32f2f;font-weight:700">✗ Failed — check token</span>';
+  if(ok){ renderDashboard(); }
+}
+
+// Schedule debounced GitHub save on every autosave trigger
+const _origAutoSave = typeof autoSave !== 'undefined' ? autoSave : null;
+function scheduleGHSave(){
+  if(estSyncTimer) clearTimeout(estSyncTimer);
+  estSyncTimer = setTimeout(()=>{
+    if(currentProjectId) serverSave(currentProjectId, S).catch(()=>{});
+  }, 2000);
+}
+
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{lmg:'#ff5e14','lmg-dark':'#e54d00',navy:'#00235a','navy-light':'#003380'}}}}</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
