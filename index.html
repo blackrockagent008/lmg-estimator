@@ -491,7 +491,7 @@ function getDefaultDivisions(){
 //  STATE
 // ================================================================
 const STORAGE_KEY='lmg_estimator_v3';
-const API_BASE='https://estimator.lmg-gc.com/api.php';
+const API_BASE='https://lmg-gc.com/lmg5/api.php';
 let LMG_TOKEN=localStorage.getItem('lmg_token')||'';
 let LMG_USER=JSON.parse(localStorage.getItem('lmg_user')||'null');
 function showLoginScreen(){document.getElementById('loginGate').style.display='flex';}
@@ -701,6 +701,109 @@ if(typeof pdfjsLib!=='undefined'){
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
+// Procore CSI division names
+const PROCORE_CSI={'01':'General Requirements','02':'Site Construction','03':'Concrete','04':'Masonry','05':'Metals','06':'Wood & Plastics','07':'Thermal and Moisture Protection','08':'Doors and Windows','09':'Finishes','10':'Specialties','11':'Equipment','12':'Furnishings','13':'Special Construction','14':'Conveying Systems','15':'Mechanical','16':'Electrical (Legacy)','21':'Fire Suppression','22':'Plumbing','23':'HVAC','25':'Integrated Automation','26':'Electrical','27':'Communications','28':'Electronic Safety & Security','31':'Earthwork','32':'Exterior Improvements','33':'Utilities'};
+
+function parseProcoreBudget(text){
+  if(!text.match(/Procore\s+Standard\s+Budget/i))return null;
+  const result={_isProcoreBudget:true,projectName:null,jobNumber:null,address:null,divisions:{},lineItems:[],grandTotal:0};
+  // Project info
+  let m=text.match(/Job\s*#:\s*(\d+)\s+([A-Za-z0-9][^\$\n]{3,60}?)(?=\s+\d{3,4}[A-Z\-]|\s+TX\s|\s+Port|\s+Houston|\s+McAllen|\s+Laredo)/i);
+  if(m){result.jobNumber=m[1].trim();result.projectName=m[2].trim();}
+  // Address
+  m=text.match(/(\d{3,5}[^\n]+?(?:TX|Texas)[^\n]{0,20})/i);
+  if(m)result.address=m[1].trim();
+  // Line items — match budget codes like 01-011.L, 23.Eq, 26-100.E etc.
+  // PDF.js text is space-joined; amounts appear right after description
+  const lineRe=/\b(\d{2,3}[A-Z]?-\d{3,4}\.?[A-Za-z]{0,3}|\d{2,3}\.[A-Za-z]{1,3})\s+([A-Za-z][A-Za-z0-9\s\-&.,()\/']{2,80}?)\s+\$([0-9,]+\.\d{2})/g;
+  let match;
+  while((match=lineRe.exec(text))!==null){
+    const code=match[1].trim();
+    const desc=match[2].trim();
+    const amount=parseFloat(match[3].replace(/,/g,''));
+    // Skip subtotals, grand totals, zeros
+    if(/subtotal|grand total|report grand/i.test(desc))continue;
+    if(amount===0)continue;
+    const divNum=code.match(/^(\d{2,3})/)?.[1]||'99';
+    if(!result.divisions[divNum])result.divisions[divNum]={items:[],total:0,name:PROCORE_CSI[divNum]||'Division '+divNum};
+    result.divisions[divNum].items.push({code,desc,amount});
+    result.divisions[divNum].total+=amount;
+    result.lineItems.push({code,desc,amount,divNum});
+  }
+  // Grand total
+  m=text.match(/(?:Report\s+)?Grand\s+Total\s+\$([0-9,]+\.\d{2})/i);
+  if(m)result.grandTotal=parseFloat(m[1].replace(/,/g,''));
+  return Object.keys(result.divisions).length>0?result:null;
+}
+
+function buildProcoreResultsHTML(data){
+  const total=data.grandTotal||Object.values(data.divisions).reduce((s,d)=>s+d.total,0);
+  let rows='';
+  Object.entries(data.divisions).sort(([a],[b])=>+a-+b).forEach(([num,div])=>{
+    rows+=`<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:7px 10px;font-weight:700;color:var(--lmg);font-size:12px">${num}</td>
+      <td style="padding:7px 10px;font-size:12px">${esc(div.name)}<span style="font-size:10px;color:var(--text-sec);margin-left:6px">(${div.items.length} line${div.items.length>1?'s':''})</span></td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px">${fmt(div.total)}</td>
+    </tr>`;
+  });
+  return `<div style="margin-top:14px;border:2px solid #10b981;border-radius:12px;overflow:hidden">
+    <div style="background:#10b981;padding:10px 16px;color:#fff;font-weight:800;font-size:13px">&#9989; Procore Standard Budget Detected${data.projectName?' — '+esc(data.projectName):''}</div>
+    <div style="padding:10px 14px;background:var(--surface);font-size:12px;color:var(--text-sec)">Job #${data.jobNumber||'—'} &nbsp;&middot;&nbsp; ${Object.keys(data.divisions).length} CSI divisions &nbsp;&middot;&nbsp; Grand Total: <strong style="color:var(--text)">${fmt(total)}</strong></div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--surface)">
+      <thead><tr style="background:var(--surface-alt)">
+        <th style="padding:7px 10px;text-align:left;font-size:10px;color:var(--text-sec);width:60px">Div</th>
+        <th style="padding:7px 10px;text-align:left;font-size:10px;color:var(--text-sec)">Description</th>
+        <th style="padding:7px 10px;text-align:right;font-size:10px;color:var(--text-sec)">Original Budget</th>
+      </tr></thead>
+      <tbody>${rows}
+      <tr style="background:var(--input-bg);font-weight:900;border-top:2px solid var(--border)">
+        <td colspan="2" style="padding:8px 10px;font-size:13px">GRAND TOTAL</td>
+        <td style="padding:8px 10px;text-align:right;font-size:14px;color:#10b981">${fmt(total)}</td>
+      </tr></tbody>
+    </table>
+    <div style="padding:12px;display:flex;gap:8px">
+      <button onclick="importProcoreBudget(window._procoreData)" style="flex:1;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer">&#11015;&#65039; Import Budget into Estimate</button>
+      <button onclick="expandProcoreLines()" style="padding:12px 16px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer">&#128269; View Lines</button>
+    </div>
+  </div>`;
+}
+
+function importProcoreBudget(data){
+  if(!data)return;
+  const newDivisions=[];
+  Object.entries(data.divisions).sort(([a],[b])=>+a-+b).forEach(([num,div])=>{
+    const items=div.items.map(item=>({
+      desc:item.desc,unit:'LS',qty:1,cost:item.amount,
+      note:'Procore: '+item.code,confidence:'firm'
+    }));
+    newDivisions.push({num,name:div.name,laborPct:35,divContingency:0,collapsed:false,showBids:false,bids:[],items});
+  });
+  S.divisions=newDivisions;
+  if(data.projectName&&!S.project.name)S.project.name=data.projectName;
+  saveState();renderEstimate();renderSummary();
+  // Switch to Estimate tab
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const eb=document.querySelector('[data-tab="estimate"]');if(eb)eb.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(tc=>tc.classList.remove('active'));
+  const et=$('tabEstimate');if(et)et.classList.add('active');
+  showToast('\u2705 Procore budget imported — '+Object.keys(data.divisions).length+' divisions, '+fmt(data.grandTotal||0),'#10b981');
+}
+
+function expandProcoreLines(){
+  const data=window._procoreData;if(!data)return;
+  let html='<div style="padding:12px;background:var(--surface)">';
+  Object.entries(data.divisions).sort(([a],[b])=>+a-+b).forEach(([num,div])=>{
+    html+=`<div style="font-weight:700;font-size:12px;color:var(--lmg);margin:10px 0 4px">${num} — ${esc(div.name)}</div>`;
+    div.items.forEach(it=>{
+      html+=`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 8px;border-bottom:1px solid var(--border)">`+
+        `<span><code style="color:var(--text-sec);font-size:10px">${esc(it.code)}</code> ${esc(it.desc)}</span>`+
+        `<span style="font-weight:700;white-space:nowrap;margin-left:12px">${fmt(it.amount)}</span></div>`;
+    });
+  });
+  html+='</div>';
+  const c=$('planResultsContainer');if(c){const cur=c.innerHTML;c.innerHTML=buildProcoreResultsHTML(data)+html;}
+}
+
 async function parsePDF(file){
   if(typeof pdfjsLib==='undefined'){showToast('PDF.js not loaded — check connection','#ef4444');return null;}
   const ab=await file.arrayBuffer();
@@ -711,6 +814,9 @@ async function parsePDF(file){
     const tc=await pg.getTextContent();
     text+=tc.items.map(x=>x.str).join(' ')+'\n';
   }
+  // Check for Procore budget format first
+  const procore=parseProcoreBudget(text);
+  if(procore){window._procoreData=procore;return procore;}
   return analyzePlanText(text);
 }
 
