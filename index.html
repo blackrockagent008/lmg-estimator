@@ -4,149 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LMG Master Estimator — Commercial Construction</title>
-<script src="lmg-sync.js">
-
-// ═══════════════════════════════════════════════
-// GITHUB SYNC OVERRIDE — replaces dead estimator.lmg-gc.com API
-// Uses lmg-sync.js connected to lmg-projects-data private repo
-// ═══════════════════════════════════════════════
-const GH_TOOL_EST = 'estimator';
-let ghShaMap = {}; // projectId → current GitHub SHA
-let estSyncTimer = null;
-
-function getGHToken(){ return LMGSync && LMGSync.hasToken ? LMGSync.hasToken() : false; }
-function getPMName(){ return LMG_USER ? LMG_USER.name || LMG_USER.username : 'PM'; }
-
-function getProjectGHSha(id){ return ghShaMap[id] || null; }
-function setProjectGHSha(id, sha){ ghShaMap[id] = sha; }
-
-// Override serverSave — push to GitHub instead of dead PHP API
-async function serverSave(id, state){
-  if(!getGHToken()) return;
-  try{
-    const sha = getProjectGHSha(id);
-    const result = await LMGSync.saveProject(GH_TOOL_EST, id, state, sha, getPMName());
-    if(result && result.sha){ setProjectGHSha(id, result.sha); setSaveStatus('server'); }
-    else { setSaveStatus('local'); }
-  }catch(e){ console.warn('GH save failed:', e); setSaveStatus('local'); }
-}
-
-// Override serverLoad — pull from GitHub instead of dead PHP API
-async function serverLoad(id){
-  if(!getGHToken()) return null;
-  try{
-    const result = await LMGSync.loadProject(GH_TOOL_EST, id);
-    if(result && result.data){ setProjectGHSha(id, result.sha); return result.data; }
-    return null;
-  }catch(e){ return null; }
-}
-
-// Override serverList — list from GitHub
-async function serverList(){
-  if(!getGHToken()) return {projects:[]};
-  try{
-    const files = await LMGSync.listProjects(GH_TOOL_EST);
-    const projects = await Promise.all(files.map(async f => {
-      const d = await LMGSync.loadProject(GH_TOOL_EST, f.id);
-      if(d && d.data){ setProjectGHSha(f.id, d.sha); return { id: f.id, ...d.data }; }
-      return null;
-    }));
-    return { projects: projects.filter(Boolean) };
-  }catch(e){ return {projects:[]}; }
-}
-
-// Override serverDelete — remove from GitHub
-async function serverDelete(id){
-  // GitHub API requires file SHA to delete — mark as archived instead
-  try{
-    const result = await LMGSync.loadProject(GH_TOOL_EST, id);
-    if(result && result.data){
-      result.data._archived = true;
-      await LMGSync.saveProject(GH_TOOL_EST, id, result.data, result.sha, getPMName());
-    }
-  }catch(e){}
-}
-
-// Auto-pull every 15s — check if another PM updated the current project
-async function ghAutoPull(){
-  if(!currentProjectId || !getGHToken()) return;
-  try{
-    const result = await LMGSync.loadProject(GH_TOOL_EST, currentProjectId);
-    if(!result) return;
-    const sha = getProjectGHSha(currentProjectId);
-    if(result.sha === sha) return; // no change
-    const modBy = result.data?._lastModifiedBy;
-    if(modBy && modBy !== getPMName()){
-      // Another PM updated — reload
-      setProjectGHSha(currentProjectId, result.sha);
-      S = applyStateMigrations(result.data) || getDefaultState();
-      init();
-      setSaveStatus('server');
-      console.log('Auto-updated by', modBy);
-    }
-  }catch(e){}
-}
-
-// Set auto-pull interval on startup
-(function initGHSync(){
-  // If LMGSync is available and token is set, start pulling
-  if(typeof LMGSync !== 'undefined'){
-    setInterval(ghAutoPull, 15000);
-    // Add GitHub token field to the PM (login) tab if not already present
-    const pmTab = document.getElementById('tab-pm');
-    if(pmTab){
-      const ghDiv = document.createElement('div');
-      ghDiv.style.cssText = 'background:#1a1a1a;border:1px solid #ff5e14;padding:20px;margin-top:20px;';
-      ghDiv.innerHTML = \`
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#ff5e14;margin-bottom:12px">GitHub Project Storage</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end">
-          <div>
-            <div style="font-size:11px;color:#888;margin-bottom:4px">GITHUB ACCESS TOKEN (enter once per device)</div>
-            <input id="gh-token-input" type="password" placeholder="ghp_xxxx or gho_xxxx"
-              style="width:100%;background:#111;border:1px solid #333;color:#fff;padding:8px;font-size:13px"
-              oninput="if(this.value)LMGSync.setToken(this.value)">
-          </div>
-          <div>
-            <div style="font-size:11px;color:#888;margin-bottom:4px">STATUS</div>
-            <div id="gh-sync-status" style="font-size:12px;color:#666;padding:9px 0">Not connected</div>
-          </div>
-          <button onclick="testGHConnection()"
-            style="background:#ff5e14;color:#fff;border:none;padding:9px 16px;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">
-            Test →
-          </button>
-        </div>
-        <div style="font-size:11px;color:#555;margin-top:8px">All projects auto-save to GitHub every 2 seconds. Any PM can access from any device.</div>
-      \`;
-      pmTab.appendChild(ghDiv);
-    }
-    // Load existing token into field on next tick
-    setTimeout(()=>{
-      const inp = document.getElementById('gh-token-input');
-      if(inp && LMGSync.hasToken()) inp.value = '••••••••••••••••';
-    }, 500);
-  }
-})();
-
-async function testGHConnection(){
-  const status = document.getElementById('gh-sync-status');
-  if(status) status.innerHTML = '<span style="color:#ff9800">Testing...</span>';
-  const ok = await LMGSync.ping();
-  if(status) status.innerHTML = ok
-    ? '<span style="color:#2e7d32;font-weight:700">✓ Connected</span>'
-    : '<span style="color:#d32f2f;font-weight:700">✗ Failed — check token</span>';
-  if(ok){ renderDashboard(); }
-}
-
-// Schedule debounced GitHub save on every autosave trigger
-const _origAutoSave = typeof autoSave !== 'undefined' ? autoSave : null;
-function scheduleGHSave(){
-  if(estSyncTimer) clearTimeout(estSyncTimer);
-  estSyncTimer = setTimeout(()=>{
-    if(currentProjectId) serverSave(currentProjectId, S).catch(()=>{});
-  }, 2000);
-}
-
-</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{lmg:'#ff5e14','lmg-dark':'#e54d00',navy:'#00235a','navy-light':'#003380'}}}}</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -360,6 +217,7 @@ select.field-input{cursor:pointer}
   <div id="tabSchedule" class="tab-content"></div>
   <div id="tabPm" class="tab-content"></div>
   <div id="tabForms" class="tab-content"></div>
+  <div id="tabG702" class="tab-content"></div>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -382,7 +240,8 @@ const TABS=[
   {id:'reports',label:'Reports'},
   {id:'schedule',label:'Schedule'},
   {id:'pm',label:'PM'},
-  {id:'forms',label:'Forms'}
+  {id:'forms',label:'Forms'},
+  {id:'g702',label:'G702/G703'}
 ];
 
 const BUILDING_TYPES=[
@@ -710,7 +569,8 @@ function getBlankState(){
     schedule:{startDate:'',phases:[]},
     actuals:{},
     changeOrders:[],
-    takeoffs:[]
+    takeoffs:[],
+    g702:{applications:[]}
   };
 }
 function getDefaultState(){
@@ -743,6 +603,7 @@ function loadState(){
   if(!s.changeOrders)s.changeOrders=[];
   if(!s.takeoffs)s.takeoffs=[];
   if(!s.contracts)s.contracts=[];
+  if(!s.g702)s.g702={applications:[]};
   if(s.building&&s.building.totalSFOverride===undefined)s.building.totalSFOverride=0;
   s.divisions.forEach(d=>d.items.forEach(it=>{if(!it.confidence)it.confidence='budgetary';}));
   return s;}catch(e){return null;}
@@ -938,6 +799,7 @@ function renderTabs(){
     if(btn.dataset.tab==='schedule')renderScheduleTab();
     if(btn.dataset.tab==='pm')renderPMTab();
     if(btn.dataset.tab==='forms')renderFormsTab();
+    if(btn.dataset.tab==='g702')renderG702Tab();
   });
 }
 
@@ -3883,6 +3745,29 @@ function renderDashboard(){
     localStorage.setItem('lmg_app_build',APP_VERSION);
   }
 
+  // ============================================================
+  //  V13 PROJECT MIGRATION — restores server-saved projects
+  // ============================================================
+  (function migrateV13Projects(){
+    if(localStorage.getItem("lmg_v13_migrated"))return;
+    try{
+    if(!localStorage.getItem("lmg_project_proj_1783025136719_g5vqr")){
+      localStorage.setItem("lmg_project_proj_1783025136719_g5vqr",'{"project":{"name":"StudioRES McAllen","client":"InnJoy Hospitality","type":"Hotel Extended Stay","city":"McAllen","state":"TX","architect":"KPL Architecture","date":"2026-06-30","rooms":"124","status":"SD"},"building":{"length":250,"width":60,"stories":4,"structural":"Wood Frame","hvac":"PTAC","acSF":60000,"nonAcSF":0,"totalSFOverride":0},"locationKey":"mcallen","gcFee":8,"overhead":5,"profit":7,"contingency":5,"divisions":[{"num":"01","name":"GENERAL REQUIREMENTS","laborPct":70,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Superintendent","unit":"MO","qty":18,"cost":8620,"notes":"","confidence":"budgetary"},{"desc":"Project Manager","unit":"MO","qty":18,"cost":7422,"notes":"","confidence":"budgetary"},{"desc":"General Labor / Cleanup","unit":"MO","qty":18,"cost":4884,"notes":"","confidence":"budgetary"},{"desc":"Temporary Facilities & Utilities","unit":"LS","qty":1,"cost":52673,"notes":"","confidence":"budgetary"},{"desc":"Safety Program","unit":"LS","qty":1,"cost":26336,"notes":"","confidence":"budgetary"},{"desc":"Insurance (GL, Builder\'s Risk)","unit":"LS","qty":1,"cost":56204,"notes":"","confidence":"budgetary"},{"desc":"Bonds (Performance & Payment)","unit":"LS","qty":1,"cost":102951,"notes":"","confidence":"budgetary"},{"desc":"Permits & Fees","unit":"LS","qty":1,"cost":29000,"notes":"","confidence":"budgetary"},{"desc":"Survey & Layout","unit":"LS","qty":1,"cost":17238,"notes":"","confidence":"budgetary"},{"desc":"Testing & Inspections","unit":"LS","qty":1,"cost":13408,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"02","name":"EXISTING CONDITIONS","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Demolition","unit":"LS","qty":0,"cost":0,"notes":"N/A \\u2014 New Construction","confidence":"budgetary"},{"desc":"Site Clearing & Grubbing","unit":"LS","qty":1,"cost":22984,"notes":"","confidence":"budgetary"},{"desc":"Abatement","unit":"LS","qty":0,"cost":0,"notes":"N/A","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"03","name":"CONCRETE","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Excavation & Grading","unit":"CY","qty":8500,"cost":6.7,"notes":"","confidence":"budgetary"},{"desc":"Spread Footings","unit":"EA","qty":85,"cost":2011,"notes":"","confidence":"budgetary"},{"desc":"Grade Beams","unit":"LF","qty":1200,"cost":79,"notes":"","confidence":"budgetary"},{"desc":"Slab on Grade (4\\" w/ WWF)","unit":"SF","qty":15000,"cost":4.55,"notes":"","confidence":"budgetary"},{"desc":"Elevated Deck","unit":"SF","qty":45000,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"CMU Walls","unit":"SF","qty":12000,"cost":16.76,"notes":"","confidence":"budgetary"},{"desc":"Concrete Stair Towers","unit":"EA","qty":2,"cost":107739,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"04","name":"MASONRY","laborPct":60,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"CMU Block at Core/Stairs","unit":"SF","qty":4000,"cost":13.41,"notes":"","confidence":"budgetary"},{"desc":"Brick / Stone Veneer","unit":"SF","qty":0,"cost":0,"notes":"N/A","confidence":"budgetary"},{"desc":"Masonry Fireplace","unit":"EA","qty":0,"cost":0,"notes":"N/A","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"05","name":"METALS","laborPct":45,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Structural Steel (columns, beams)","unit":"TN","qty":45,"cost":2298,"notes":"","confidence":"budgetary"},{"desc":"Metal Deck","unit":"SF","qty":15000,"cost":3.83,"notes":"","confidence":"budgetary"},{"desc":"Miscellaneous Metals","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"Ornamental Metal / Railings","unit":"LF","qty":800,"cost":45.49,"notes":"","confidence":"budgetary"},{"desc":"Metal Stairs","unit":"FLT","qty":6,"cost":7183,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"06","name":"WOOD / PLASTICS / COMPOSITES","laborPct":65,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Wood Framing (exterior walls)","unit":"SF","qty":24000,"cost":9.1,"notes":"","confidence":"budgetary"},{"desc":"Wood Framing (interior walls)","unit":"SF","qty":48000,"cost":5.99,"notes":"","confidence":"budgetary"},{"desc":"Roof Framing","unit":"SF","qty":15000,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"Sheathing","unit":"SF","qty":42000,"cost":2.78,"notes":"","confidence":"budgetary"},{"desc":"Rough Carpentry","unit":"LS","qty":1,"cost":165200,"notes":"","confidence":"budgetary"},{"desc":"Finish Carpentry / Millwork","unit":"LS","qty":1,"cost":248998,"notes":"","confidence":"budgetary"},{"desc":"Casework (guestrooms + BOH)","unit":"RM","qty":125,"cost":4669,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"07","name":"THERMAL & MOISTURE PROTECTION","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Building Wrap / Air Barrier","unit":"SF","qty":24000,"cost":1.68,"notes":"","confidence":"budgetary"},{"desc":"Batt Insulation","unit":"SF","qty":48000,"cost":1.34,"notes":"","confidence":"budgetary"},{"desc":"Rigid Insulation","unit":"SF","qty":15000,"cost":2.15,"notes":"","confidence":"budgetary"},{"desc":"Spray Foam Insulation","unit":"SF","qty":8000,"cost":2.49,"notes":"","confidence":"budgetary"},{"desc":"Roofing (TPO Membrane)","unit":"SF","qty":15000,"cost":5.75,"notes":"","confidence":"budgetary"},{"desc":"Roof Insulation","unit":"SF","qty":15000,"cost":2.63,"notes":"","confidence":"budgetary"},{"desc":"Flashing & Sheet Metal","unit":"LS","qty":1,"cost":59855,"notes":"","confidence":"budgetary"},{"desc":"Caulking & Sealants","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Waterproofing","unit":"LS","qty":1,"cost":181960,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"08","name":"OPENINGS","laborPct":40,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Hollow Metal Doors & Frames","unit":"EA","qty":85,"cost":575,"notes":"","confidence":"budgetary"},{"desc":"Wood Doors (guestrooms)","unit":"EA","qty":160,"cost":311,"notes":"","confidence":"budgetary"},{"desc":"Aluminum Storefront (lobby)","unit":"SF","qty":1200,"cost":40.7,"notes":"","confidence":"budgetary"},{"desc":"Curtain Wall","unit":"SF","qty":0,"cost":0,"notes":"N/A","confidence":"budgetary"},{"desc":"Windows (guestroom aluminum)","unit":"EA","qty":180,"cost":455,"notes":"","confidence":"budgetary"},{"desc":"Hardware","unit":"LS","qty":1,"cost":88586,"notes":"","confidence":"budgetary"},{"desc":"Automatic Doors (entry)","unit":"EA","qty":2,"cost":5746,"notes":"","confidence":"budgetary"},{"desc":"Glass & Glazing","unit":"LS","qty":1,"cost":149399,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"09","name":"FINISHES","laborPct":60,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Gypsum Board (walls)","unit":"SF","qty":160000,"cost":3.45,"notes":"","confidence":"budgetary"},{"desc":"Gypsum Board (ceilings)","unit":"SF","qty":55000,"cost":3.11,"notes":"","confidence":"budgetary"},{"desc":"Ceramic Tile (bathrooms)","unit":"SF","qty":15000,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"LVT / Vinyl Flooring (guestrooms)","unit":"SF","qty":32000,"cost":5.27,"notes":"","confidence":"budgetary"},{"desc":"Carpet (corridors)","unit":"SF","qty":10000,"cost":4.31,"notes":"","confidence":"budgetary"},{"desc":"Acoustic Ceiling Tile (BOH)","unit":"SF","qty":6000,"cost":3.35,"notes":"","confidence":"budgetary"},{"desc":"Interior Paint","unit":"SF","qty":200000,"cost":1.53,"notes":"","confidence":"budgetary"},{"desc":"Exterior Paint / Coating","unit":"SF","qty":24000,"cost":3.83,"notes":"","confidence":"budgetary"},{"desc":"Wall Covering / Vinyl","unit":"SF","qty":20000,"cost":5.75,"notes":"","confidence":"budgetary"},{"desc":"Epoxy Flooring (BOH)","unit":"SF","qty":4000,"cost":7.66,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"10","name":"SPECIALTIES","laborPct":35,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Toilet Accessories","unit":"RM","qty":125,"cost":215,"notes":"","confidence":"budgetary"},{"desc":"Fire Extinguishers & Cabinets","unit":"EA","qty":30,"cost":311,"notes":"","confidence":"budgetary"},{"desc":"Signage & Wayfinding","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Lockers (BOH)","unit":"LS","qty":1,"cost":7183,"notes":"","confidence":"budgetary"},{"desc":"Flag Poles","unit":"EA","qty":2,"cost":1676,"notes":"","confidence":"budgetary"},{"desc":"Window Treatments (guestrooms)","unit":"RM","qty":125,"cost":168,"notes":"","confidence":"budgetary"},{"desc":"Corner Guards","unit":"EA","qty":200,"cost":26.34,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"11","name":"EQUIPMENT","laborPct":20,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Commercial Kitchen Equipment","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"Laundry Equipment (washers/dryers)","unit":"EA","qty":12,"cost":7183,"notes":"","confidence":"budgetary"},{"desc":"Ice Machines","unit":"EA","qty":5,"cost":4549,"notes":"","confidence":"budgetary"},{"desc":"Fitness Equipment","unit":"LS","qty":1,"cost":45490,"notes":"","confidence":"budgetary"},{"desc":"Vending Equipment","unit":"EA","qty":3,"cost":7183,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"12","name":"FURNISHINGS","laborPct":15,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Guestroom FF&E (beds, desks, chairs)","unit":"RM","qty":125,"cost":7183,"notes":"","confidence":"budgetary"},{"desc":"Lobby Furniture","unit":"LS","qty":1,"cost":119710,"notes":"","confidence":"budgetary"},{"desc":"Pool Furniture","unit":"LS","qty":1,"cost":16759,"notes":"","confidence":"budgetary"},{"desc":"Window Treatments / Draperies","unit":"RM","qty":125,"cost":551,"notes":"","confidence":"budgetary"},{"desc":"Art & Accessories","unit":"LS","qty":1,"cost":47884,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"13","name":"SPECIAL CONSTRUCTION","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Swimming Pool","unit":"LS","qty":0,"cost":0,"notes":"TBD","confidence":"budgetary"},{"desc":"Hot Tub / Spa","unit":"LS","qty":0,"cost":0,"notes":"TBD","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"14","name":"CONVEYING EQUIPMENT","laborPct":30,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Passenger Elevator (per cab)","unit":"EA","qty":2,"cost":75178,"notes":"","confidence":"budgetary"},{"desc":"Elevator Modernization","unit":"EA","qty":0,"cost":0,"notes":"N/A","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"21","name":"FIRE SUPPRESSION","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Fire Sprinkler System (wet pipe)","unit":"SF","qty":60000,"cost":3.83,"notes":"","confidence":"budgetary"},{"desc":"Standpipes","unit":"EA","qty":4,"cost":4070,"notes":"","confidence":"budgetary"},{"desc":"Fire Pump (if required)","unit":"EA","qty":1,"cost":15323,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"22","name":"PLUMBING","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Domestic Water Service","unit":"LS","qty":1,"cost":119710,"notes":"","confidence":"budgetary"},{"desc":"Sanitary Sewer","unit":"LS","qty":1,"cost":105345,"notes":"","confidence":"budgetary"},{"desc":"Storm Drainage","unit":"LS","qty":1,"cost":79009,"notes":"","confidence":"budgetary"},{"desc":"Plumbing Fixtures (bathrooms)","unit":"RM","qty":125,"cost":3065,"notes":"","confidence":"budgetary"},{"desc":"Water Heater / Boiler","unit":"LS","qty":1,"cost":102951,"notes":"","confidence":"budgetary"},{"desc":"Grease Trap (if F&B)","unit":"EA","qty":1,"cost":20111,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"23","name":"HVAC","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"PTAC Units (guestrooms)","unit":"RM","qty":125,"cost":2969,"notes":"","confidence":"budgetary"},{"desc":"Corridor HVAC (fan coils)","unit":"LS","qty":1,"cost":181960,"notes":"","confidence":"budgetary"},{"desc":"Lobby / Public HVAC","unit":"LS","qty":1,"cost":201114,"notes":"","confidence":"budgetary"},{"desc":"Kitchen Exhaust","unit":"LS","qty":1,"cost":45490,"notes":"","confidence":"budgetary"},{"desc":"Bathroom Exhaust Fans","unit":"EA","qty":125,"cost":469,"notes":"","confidence":"budgetary"},{"desc":"Mechanical Room Equipment","unit":"LS","qty":1,"cost":167595,"notes":"","confidence":"budgetary"},{"desc":"Controls / BAS","unit":"LS","qty":1,"cost":190579,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"26","name":"ELECTRICAL","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Electrical Service & Distribution","unit":"LS","qty":1,"cost":181960,"notes":"","confidence":"budgetary"},{"desc":"Branch Wiring","unit":"SF","qty":60000,"cost":4.07,"notes":"","confidence":"budgetary"},{"desc":"Lighting (guestrooms)","unit":"RM","qty":125,"cost":1532,"notes":"","confidence":"budgetary"},{"desc":"Lighting (public spaces)","unit":"LS","qty":1,"cost":134076,"notes":"","confidence":"budgetary"},{"desc":"Exterior Lighting","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"EV Charging Stations","unit":"EA","qty":4,"cost":8619,"notes":"","confidence":"budgetary"},{"desc":"Emergency Generator","unit":"EA","qty":1,"cost":136470,"notes":"","confidence":"budgetary"},{"desc":"Fire Alarm System","unit":"LS","qty":1,"cost":155624,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"27","name":"COMMUNICATIONS","laborPct":35,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Structured Cabling (Cat6)","unit":"RM","qty":125,"cost":575,"notes":"","confidence":"budgetary"},{"desc":"WiFi Infrastructure (APs)","unit":"EA","qty":60,"cost":862,"notes":"","confidence":"budgetary"},{"desc":"Cable TV / IPTV","unit":"RM","qty":125,"cost":407,"notes":"","confidence":"budgetary"},{"desc":"Telephone","unit":"LS","qty":1,"cost":31125,"notes":"","confidence":"budgetary"},{"desc":"Audio/Visual (lobby)","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Key Card Door Lock System","unit":"RM","qty":125,"cost":599,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"28","name":"ELECTRONIC SAFETY & SECURITY","laborPct":40,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Fire Alarm (detailed)","unit":"LS","qty":1,"cost":0,"notes":"Included in Div 26","confidence":"budgetary"},{"desc":"Security Cameras (CCTV)","unit":"EA","qty":25,"cost":1341,"notes":"","confidence":"budgetary"},{"desc":"Access Control","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Intrusion Detection","unit":"LS","qty":1,"cost":21548,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"31","name":"EARTHWORK","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Site Clearing","unit":"LS","qty":1,"cost":16759,"notes":"","confidence":"budgetary"},{"desc":"Mass Grading / Cut & Fill","unit":"CY","qty":5000,"cost":5.75,"notes":"","confidence":"budgetary"},{"desc":"Import/Export Soil","unit":"CY","qty":2000,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"Compaction Testing","unit":"LS","qty":1,"cost":11971,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"32","name":"EXTERIOR IMPROVEMENTS","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Asphalt Paving (parking lot)","unit":"SF","qty":50000,"cost":2.3,"notes":"","confidence":"budgetary"},{"desc":"Concrete Curb & Gutter","unit":"LF","qty":2400,"cost":13.41,"notes":"","confidence":"budgetary"},{"desc":"Concrete Sidewalks","unit":"SF","qty":8000,"cost":4.55,"notes":"","confidence":"budgetary"},{"desc":"Landscape & Irrigation","unit":"LS","qty":1,"cost":88586,"notes":"","confidence":"budgetary"},{"desc":"Site Lighting","unit":"EA","qty":15,"cost":2634,"notes":"","confidence":"budgetary"},{"desc":"Striping & Signage","unit":"LS","qty":1,"cost":13408,"notes":"","confidence":"budgetary"},{"desc":"Fencing","unit":"LF","qty":800,"cost":39.27,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"33","name":"UTILITIES","laborPct":45,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Water Service (to building)","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"Sanitary Sewer (to building)","unit":"LS","qty":1,"cost":55067,"notes":"","confidence":"budgetary"},{"desc":"Gas Service","unit":"LS","qty":1,"cost":21548,"notes":"","confidence":"budgetary"},{"desc":"Electrical Duct Bank","unit":"LS","qty":1,"cost":64644,"notes":"","confidence":"budgetary"},{"desc":"Storm Drainage System","unit":"LS","qty":1,"cost":59855,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]}],"contracts":[],"theme":"light","showRanges":false,"schedule":{"startDate":"","phases":[]},"actuals":[],"changeOrders":[],"takeoffs":[],"id":"proj_1783025136719_g5vqr","_totalCost":13776308.6175,"_savedBy":"Adrian","_savedAt":"2026-07-06T22:54:10+00:00"}');
+    }
+    if(!localStorage.getItem("lmg_project_proj_1783088251841_94ey1")){
+      localStorage.setItem("lmg_project_proj_1783088251841_94ey1",'{"project":{"name":"StudioRES McAllen","client":"InnJoy Hospitality","type":"Hotel Extended Stay","city":"McAllen","state":"TX","architect":"KPL Architecture","date":"2026-06-30","rooms":"124","status":"SD"},"building":{"length":143,"width":95,"stories":4,"structural":"Wood Frame","hvac":"PTAC","acSF":"54500","nonAcSF":0,"totalSFOverride":54500},"locationKey":"mcallen","gcFee":8,"overhead":5,"profit":7,"contingency":5,"divisions":[{"num":"01","name":"GENERAL REQUIREMENTS","laborPct":70,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Superintendent","unit":"MO","qty":24,"cost":8620,"notes":"","confidence":"budgetary"},{"desc":"Project Manager","unit":"MO","qty":24,"cost":7422,"notes":"","confidence":"budgetary"},{"desc":"General Labor / Cleanup","unit":"MO","qty":24,"cost":4884,"notes":"","confidence":"budgetary"},{"desc":"Temporary Facilities & Utilities","unit":"LS","qty":1,"cost":52673,"notes":"","confidence":"budgetary"},{"desc":"Safety Program","unit":"LS","qty":1,"cost":26336,"notes":"","confidence":"budgetary"},{"desc":"Insurance (GL, Builder\'s Risk)","unit":"LS","qty":1,"cost":56204,"notes":"","confidence":"budgetary"},{"desc":"Bonds (Performance & Payment)","unit":"LS","qty":1,"cost":102951,"notes":"","confidence":"budgetary"},{"desc":"Permits & Fees","unit":"LS","qty":1,"cost":29000,"notes":"","confidence":"budgetary"},{"desc":"Survey & Layout","unit":"LS","qty":1,"cost":17238,"notes":"","confidence":"budgetary"},{"desc":"Testing & Inspections","unit":"LS","qty":1,"cost":13408,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"02","name":"EXISTING CONDITIONS","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Demolition","unit":"LS","qty":1,"cost":0,"notes":"N/A \\u2014 New Construction","confidence":"budgetary"},{"desc":"Site Clearing & Grubbing","unit":"LS","qty":1,"cost":22984,"notes":"","confidence":"budgetary"},{"desc":"Abatement","unit":"LS","qty":1,"cost":0,"notes":"N/A","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"03","name":"CONCRETE","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Excavation & Grading","unit":"CY","qty":1111,"cost":6.7,"notes":"","confidence":"budgetary"},{"desc":"Spread Footings","unit":"EA","qty":1,"cost":2011,"notes":"","confidence":"budgetary"},{"desc":"Grade Beams","unit":"LF","qty":490,"cost":79,"notes":"","confidence":"budgetary"},{"desc":"Slab on Grade (4\\" w/ WWF)","unit":"SF","qty":15000,"cost":4.55,"notes":"","confidence":"budgetary"},{"desc":"Elevated Deck","unit":"SF","qty":45000,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"CMU Walls","unit":"SF","qty":17640,"cost":16.76,"notes":"","confidence":"budgetary"},{"desc":"Concrete Stair Towers","unit":"EA","qty":1,"cost":107739,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"04","name":"MASONRY","laborPct":60,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"CMU Block at Core/Stairs","unit":"SF","qty":60000,"cost":13.41,"notes":"","confidence":"budgetary"},{"desc":"Brick / Stone Veneer","unit":"SF","qty":60000,"cost":0,"notes":"N/A","confidence":"budgetary"},{"desc":"Masonry Fireplace","unit":"EA","qty":1,"cost":0,"notes":"N/A","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"05","name":"METALS","laborPct":45,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Structural Steel (columns, beams)","unit":"TN","qty":136,"cost":2298,"notes":"","confidence":"budgetary"},{"desc":"Metal Deck","unit":"SF","qty":60000,"cost":3.83,"notes":"","confidence":"budgetary"},{"desc":"Miscellaneous Metals","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"Ornamental Metal / Railings","unit":"LF","qty":1960,"cost":45.49,"notes":"","confidence":"budgetary"},{"desc":"Metal Stairs","unit":"FLT","qty":3,"cost":7183,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"06","name":"WOOD / PLASTICS / COMPOSITES","laborPct":65,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Wood Framing (exterior walls)","unit":"SF","qty":17640,"cost":9.1,"notes":"","confidence":"budgetary"},{"desc":"Wood Framing (interior walls)","unit":"SF","qty":48000,"cost":5.99,"notes":"","confidence":"budgetary"},{"desc":"Roof Framing","unit":"SF","qty":16500,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"Sheathing","unit":"SF","qty":60000,"cost":2.78,"notes":"","confidence":"budgetary"},{"desc":"Rough Carpentry","unit":"LS","qty":1,"cost":165200,"notes":"","confidence":"budgetary"},{"desc":"Finish Carpentry / Millwork","unit":"LS","qty":1,"cost":248998,"notes":"","confidence":"budgetary"},{"desc":"Casework (guestrooms + BOH)","unit":"RM","qty":"124","cost":4669,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"07","name":"THERMAL & MOISTURE PROTECTION","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Building Wrap / Air Barrier","unit":"SF","qty":60000,"cost":1.68,"notes":"","confidence":"budgetary"},{"desc":"Batt Insulation","unit":"SF","qty":66000,"cost":1.34,"notes":"","confidence":"budgetary"},{"desc":"Rigid Insulation","unit":"SF","qty":66000,"cost":2.15,"notes":"","confidence":"budgetary"},{"desc":"Spray Foam Insulation","unit":"SF","qty":66000,"cost":2.49,"notes":"","confidence":"budgetary"},{"desc":"Roofing (TPO Membrane)","unit":"SF","qty":16500,"cost":5.75,"notes":"","confidence":"budgetary"},{"desc":"Roof Insulation","unit":"SF","qty":16500,"cost":2.63,"notes":"","confidence":"budgetary"},{"desc":"Flashing & Sheet Metal","unit":"LS","qty":1,"cost":59855,"notes":"","confidence":"budgetary"},{"desc":"Caulking & Sealants","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Waterproofing","unit":"LS","qty":1,"cost":181960,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"08","name":"OPENINGS","laborPct":40,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Hollow Metal Doors & Frames","unit":"EA","qty":454,"cost":575,"notes":"","confidence":"budgetary"},{"desc":"Wood Doors (guestrooms)","unit":"EA","qty":"124","cost":311,"notes":"","confidence":"budgetary"},{"desc":"Aluminum Storefront (lobby)","unit":"SF","qty":60000,"cost":40.7,"notes":"","confidence":"budgetary"},{"desc":"Curtain Wall","unit":"SF","qty":60000,"cost":0,"notes":"N/A","confidence":"budgetary"},{"desc":"Windows (guestroom aluminum)","unit":"EA","qty":"124","cost":455,"notes":"","confidence":"budgetary"},{"desc":"Hardware","unit":"LS","qty":1,"cost":88586,"notes":"","confidence":"budgetary"},{"desc":"Automatic Doors (entry)","unit":"EA","qty":454,"cost":5746,"notes":"","confidence":"budgetary"},{"desc":"Glass & Glazing","unit":"LS","qty":1,"cost":149399,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"09","name":"FINISHES","laborPct":60,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Gypsum Board (walls)","unit":"SF","qty":150000,"cost":3.45,"notes":"","confidence":"budgetary"},{"desc":"Gypsum Board (ceilings)","unit":"SF","qty":150000,"cost":3.11,"notes":"","confidence":"budgetary"},{"desc":"Ceramic Tile (bathrooms)","unit":"SF","qty":18000,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"LVT / Vinyl Flooring (guestrooms)","unit":"SF","qty":"124","cost":5.27,"notes":"","confidence":"budgetary"},{"desc":"Carpet (corridors)","unit":"SF","qty":51000,"cost":4.31,"notes":"","confidence":"budgetary"},{"desc":"Acoustic Ceiling Tile (BOH)","unit":"SF","qty":18000,"cost":3.35,"notes":"","confidence":"budgetary"},{"desc":"Interior Paint","unit":"SF","qty":150000,"cost":1.53,"notes":"","confidence":"budgetary"},{"desc":"Exterior Paint / Coating","unit":"SF","qty":150000,"cost":3.83,"notes":"","confidence":"budgetary"},{"desc":"Wall Covering / Vinyl","unit":"SF","qty":60000,"cost":5.75,"notes":"","confidence":"budgetary"},{"desc":"Epoxy Flooring (BOH)","unit":"SF","qty":51000,"cost":7.66,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"10","name":"SPECIALTIES","laborPct":35,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Toilet Accessories","unit":"RM","qty":"124","cost":215,"notes":"","confidence":"budgetary"},{"desc":"Fire Extinguishers & Cabinets","unit":"EA","qty":1,"cost":311,"notes":"","confidence":"budgetary"},{"desc":"Signage & Wayfinding","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Lockers (BOH)","unit":"LS","qty":1,"cost":7183,"notes":"","confidence":"budgetary"},{"desc":"Flag Poles","unit":"EA","qty":1,"cost":1676,"notes":"","confidence":"budgetary"},{"desc":"Window Treatments (guestrooms)","unit":"RM","qty":"124","cost":168,"notes":"","confidence":"budgetary"},{"desc":"Corner Guards","unit":"EA","qty":1,"cost":26.34,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"11","name":"EQUIPMENT","laborPct":20,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Commercial Kitchen Equipment","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"Laundry Equipment (washers/dryers)","unit":"EA","qty":1,"cost":7183,"notes":"","confidence":"budgetary"},{"desc":"Ice Machines","unit":"EA","qty":1,"cost":4549,"notes":"","confidence":"budgetary"},{"desc":"Fitness Equipment","unit":"LS","qty":1,"cost":45490,"notes":"","confidence":"budgetary"},{"desc":"Vending Equipment","unit":"EA","qty":1,"cost":7183,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"12","name":"FURNISHINGS","laborPct":15,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Guestroom FF&E (beds, desks, chairs)","unit":"RM","qty":"124","cost":7183,"notes":"","confidence":"budgetary"},{"desc":"Lobby Furniture","unit":"LS","qty":1,"cost":119710,"notes":"","confidence":"budgetary"},{"desc":"Pool Furniture","unit":"LS","qty":1,"cost":16759,"notes":"","confidence":"budgetary"},{"desc":"Window Treatments / Draperies","unit":"RM","qty":"124","cost":551,"notes":"","confidence":"budgetary"},{"desc":"Art & Accessories","unit":"LS","qty":1,"cost":47884,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"13","name":"SPECIAL CONSTRUCTION","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Swimming Pool","unit":"LS","qty":1,"cost":0,"notes":"TBD","confidence":"budgetary"},{"desc":"Hot Tub / Spa","unit":"LS","qty":1,"cost":0,"notes":"TBD","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"14","name":"CONVEYING EQUIPMENT","laborPct":30,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Passenger Elevator (per cab)","unit":"EA","qty":1,"cost":75178,"notes":"","confidence":"budgetary"},{"desc":"Elevator Modernization","unit":"EA","qty":1,"cost":0,"notes":"N/A","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"21","name":"FIRE SUPPRESSION","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Fire Sprinkler System (wet pipe)","unit":"SF","qty":60000,"cost":3.83,"notes":"","confidence":"budgetary"},{"desc":"Standpipes","unit":"EA","qty":1,"cost":4070,"notes":"","confidence":"budgetary"},{"desc":"Fire Pump (if required)","unit":"EA","qty":1,"cost":15323,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"22","name":"PLUMBING","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Domestic Water Service","unit":"LS","qty":1,"cost":119710,"notes":"","confidence":"budgetary"},{"desc":"Sanitary Sewer","unit":"LS","qty":1,"cost":105345,"notes":"","confidence":"budgetary"},{"desc":"Storm Drainage","unit":"LS","qty":1,"cost":79009,"notes":"","confidence":"budgetary"},{"desc":"Plumbing Fixtures (bathrooms)","unit":"RM","qty":"124","cost":3065,"notes":"","confidence":"budgetary"},{"desc":"Water Heater / Boiler","unit":"LS","qty":1,"cost":102951,"notes":"","confidence":"budgetary"},{"desc":"Grease Trap (if F&B)","unit":"EA","qty":1,"cost":20111,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"23","name":"HVAC","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"PTAC Units (guestrooms)","unit":"RM","qty":"124","cost":2969,"notes":"","confidence":"budgetary"},{"desc":"Corridor HVAC (fan coils)","unit":"LS","qty":1,"cost":181960,"notes":"","confidence":"budgetary"},{"desc":"Lobby / Public HVAC","unit":"LS","qty":1,"cost":201114,"notes":"","confidence":"budgetary"},{"desc":"Kitchen Exhaust","unit":"LS","qty":1,"cost":45490,"notes":"","confidence":"budgetary"},{"desc":"Bathroom Exhaust Fans","unit":"EA","qty":"124","cost":469,"notes":"","confidence":"budgetary"},{"desc":"Mechanical Room Equipment","unit":"LS","qty":1,"cost":167595,"notes":"","confidence":"budgetary"},{"desc":"Controls / BAS","unit":"LS","qty":1,"cost":190579,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"26","name":"ELECTRICAL","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Electrical Service & Distribution","unit":"LS","qty":1,"cost":181960,"notes":"","confidence":"budgetary"},{"desc":"Branch Wiring","unit":"SF","qty":60000,"cost":4.07,"notes":"","confidence":"budgetary"},{"desc":"Lighting (guestrooms)","unit":"RM","qty":"124","cost":1532,"notes":"","confidence":"budgetary"},{"desc":"Lighting (public spaces)","unit":"LS","qty":1,"cost":134076,"notes":"","confidence":"budgetary"},{"desc":"Exterior Lighting","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"EV Charging Stations","unit":"EA","qty":0,"cost":8619,"notes":"","confidence":"budgetary"},{"desc":"Emergency Generator","unit":"EA","qty":1,"cost":136470,"notes":"","confidence":"budgetary"},{"desc":"Fire Alarm System","unit":"LS","qty":1,"cost":155624,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"27","name":"COMMUNICATIONS","laborPct":35,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Structured Cabling (Cat6)","unit":"RM","qty":"124","cost":575,"notes":"","confidence":"budgetary"},{"desc":"WiFi Infrastructure (APs)","unit":"EA","qty":1,"cost":862,"notes":"","confidence":"budgetary"},{"desc":"Cable TV / IPTV","unit":"RM","qty":"124","cost":407,"notes":"","confidence":"budgetary"},{"desc":"Telephone","unit":"LS","qty":1,"cost":31125,"notes":"","confidence":"budgetary"},{"desc":"Audio/Visual (lobby)","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Key Card Door Lock System","unit":"RM","qty":"124","cost":599,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"28","name":"ELECTRONIC SAFETY & SECURITY","laborPct":40,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Fire Alarm (detailed)","unit":"LS","qty":1,"cost":0,"notes":"Included in Div 26","confidence":"budgetary"},{"desc":"Security Cameras (CCTV)","unit":"EA","qty":1,"cost":1341,"notes":"","confidence":"budgetary"},{"desc":"Access Control","unit":"LS","qty":1,"cost":40702,"notes":"","confidence":"budgetary"},{"desc":"Intrusion Detection","unit":"LS","qty":1,"cost":21548,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"31","name":"EARTHWORK","laborPct":55,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Site Clearing","unit":"LS","qty":1,"cost":16759,"notes":"","confidence":"budgetary"},{"desc":"Mass Grading / Cut & Fill","unit":"CY","qty":1111,"cost":5.75,"notes":"","confidence":"budgetary"},{"desc":"Import/Export Soil","unit":"CY","qty":1111,"cost":8.62,"notes":"","confidence":"budgetary"},{"desc":"Compaction Testing","unit":"LS","qty":1,"cost":11971,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"32","name":"EXTERIOR IMPROVEMENTS","laborPct":50,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Asphalt Paving (parking lot)","unit":"SF","qty":60000,"cost":2.3,"notes":"","confidence":"budgetary"},{"desc":"Concrete Curb & Gutter","unit":"LF","qty":490,"cost":13.41,"notes":"","confidence":"budgetary"},{"desc":"Concrete Sidewalks","unit":"SF","qty":60000,"cost":4.55,"notes":"","confidence":"budgetary"},{"desc":"Landscape & Irrigation","unit":"LS","qty":1,"cost":88586,"notes":"","confidence":"budgetary"},{"desc":"Site Lighting","unit":"EA","qty":1,"cost":2634,"notes":"","confidence":"budgetary"},{"desc":"Striping & Signage","unit":"LS","qty":1,"cost":13408,"notes":"","confidence":"budgetary"},{"desc":"Fencing","unit":"LF","qty":490,"cost":39.27,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]},{"num":"33","name":"UTILITIES","laborPct":45,"divContingency":10,"collapsed":true,"showBids":false,"items":[{"desc":"Water Service (to building)","unit":"LS","qty":1,"cost":57461,"notes":"","confidence":"budgetary"},{"desc":"Sanitary Sewer (to building)","unit":"LS","qty":1,"cost":55067,"notes":"","confidence":"budgetary"},{"desc":"Gas Service","unit":"LS","qty":1,"cost":21548,"notes":"","confidence":"budgetary"},{"desc":"Electrical Duct Bank","unit":"LS","qty":1,"cost":64644,"notes":"","confidence":"budgetary"},{"desc":"Storm Drainage System","unit":"LS","qty":1,"cost":59855,"notes":"","confidence":"budgetary"}],"bids":[{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false},{"vendor":"","amount":0,"scope":"","notes":"","winner":false}]}],"contracts":[],"theme":"light","showRanges":false,"schedule":{"startDate":"","phases":[]},"actuals":[],"changeOrders":[],"takeoffs":[],"id":"proj_1783088251841_94ey1","_totalCost":21986919.87277501,"_savedBy":"Adrian","_savedAt":"2026-07-03T14:19:57+00:00"}');
+    }
+    if(!localStorage.getItem("lmg_project_proj_1784068603397_pip_hgh")){
+      localStorage.setItem("lmg_project_proj_1784068603397_pip_hgh",'{"id":"proj_1784068603397_pip_hgh","project":{"name":"Hampton Inn Galleria \\u2014 PIP","client":"InnJoy Hospitality / M Management","type":"Hotel Renovation \\u2014 Property Improvement Plan","city":"Houston","state":"TX","architect":"Hampton Inn by Hilton (Franchisor PIP)","date":"2026-07-14","rooms":0,"status":"PIP"},"cityMult":1,"targetSF":0,"divisions":[{"num":"09A","name":"FINISHES \\u2014 FLOORING","laborPct":35,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Hallway Carpet","unit":"SF","qty":1,"cost":52800,"note":"","confidence":"budgetary"},{"desc":"Meeting Room Carpet","unit":"SF","qty":1,"cost":14000,"note":"","confidence":"budgetary"},{"desc":"Lobby Cafeteria Carpet","unit":"SF","qty":1,"cost":8000,"note":"","confidence":"budgetary"},{"desc":"Guestroom Carpet \\u2014 All Keys","unit":"SF","qty":1,"cost":176000,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"09B","name":"FINISHES \\u2014 WALL COVERINGS","laborPct":35,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Hallway Wallpaper","unit":"SF","qty":1,"cost":26400,"note":"","confidence":"budgetary"},{"desc":"Meeting Room Wallpaper","unit":"SF","qty":1,"cost":10000,"note":"","confidence":"budgetary"},{"desc":"Guestroom Wallpaper \\u2014 All Keys","unit":"SF","qty":1,"cost":70400,"note":"","confidence":"budgetary"},{"desc":"Guest Bathroom Wallpaper","unit":"SF","qty":1,"cost":30720,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"09C","name":"FINISHES \\u2014 PAINT","laborPct":40,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Hallway Lighting / Accent Paint","unit":"LS","qty":1,"cost":10400,"note":"","confidence":"budgetary"},{"desc":"Lobby Cafeteria Paint","unit":"LS","qty":1,"cost":28000,"note":"","confidence":"budgetary"},{"desc":"Exterior / Canopy Paint","unit":"LS","qty":1,"cost":78000,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"10","name":"SPECIALTIES \\u2014 MILLWORK & SIGNAGE","laborPct":30,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Gift Shop Millwork","unit":"LS","qty":1,"cost":12500,"note":"","confidence":"budgetary"},{"desc":"Kitchen Millwork","unit":"LS","qty":1,"cost":24000,"note":"","confidence":"budgetary"},{"desc":"Lobby Cafeteria Millwork","unit":"LS","qty":1,"cost":58000,"note":"","confidence":"budgetary"},{"desc":"Exterior Signage \\u2014 Brand PIP","unit":"LS","qty":1,"cost":82000,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"11","name":"PLUMBING FIXTURES & ACCESSORIES","laborPct":45,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Guest Bathroom Shower Pans \\u2014 All Keys","unit":"EA","qty":1,"cost":35200,"note":"","confidence":"budgetary"},{"desc":"Towel Hanging Accessories \\u2014 All Keys","unit":"EA","qty":1,"cost":24640,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"12","name":"FURNISHINGS \\u2014 FF&E","laborPct":10,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Guestroom FF&E \\u2014 All Keys (Beds, Desks, Seating, Case Goods, Lighting)","unit":"LS","qty":1,"cost":880000,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"23","name":"HVAC \\u2014 PIP COMPLIANCE","laborPct":50,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Hallway HVAC Upgrades","unit":"LS","qty":1,"cost":42800,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"27","name":"TECHNOLOGY & COMMUNICATIONS","laborPct":35,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"WiFi Upgrade \\u2014 Full Property","unit":"LS","qty":1,"cost":72000,"note":"","confidence":"budgetary"},{"desc":"Keyless Entry System \\u2014 All Guest Locks","unit":"RM","qty":1,"cost":44000,"note":"","confidence":"budgetary"},{"desc":"TV / HDTV Replacement \\u2014 All Keys","unit":"RM","qty":1,"cost":88000,"note":"","confidence":"budgetary"}],"bids":[]},{"num":"32","name":"EXTERIOR IMPROVEMENTS","laborPct":50,"divContingency":0,"collapsed":false,"showBids":false,"items":[{"desc":"Landscaping \\u2014 Entry Canopy","unit":"LS","qty":1,"cost":59000,"note":"","confidence":"budgetary"},{"desc":"Facade Renovation \\u2014 Brand PIP","unit":"LS","qty":1,"cost":120000,"note":"","confidence":"budgetary"}],"bids":[]}],"snapshots":[],"draws":[],"_totalCost":2046860,"_savedBy":"Adrian","_savedAt":"2026-07-14T22:36:43+00:00"}');
+    }
+    if(!localStorage.getItem("lmg_projects_index")){
+      localStorage.setItem("lmg_projects_index",'[{"id":"proj_1783025136719_g5vqr","name":"StudioRES McAllen","type":"Hotel Extended Stay","city":"McAllen","state":"TX","status":"SD","totalCost":13776308.6175,"keys":"124","gsf":60000,"acSF":60000,"lastModified":"2026-07-06T22:54:10+00:00","savedBy":"Adrian"},{"id":"proj_1783088251841_94ey1","name":"StudioRES McAllen","type":"Hotel Extended Stay","city":"McAllen","state":"TX","status":"SD","totalCost":21986919.87277501,"keys":"124","gsf":54340,"acSF":"54500","lastModified":"2026-07-03T14:19:57+00:00","savedBy":"Adrian"},{"id":"proj_1784068603397_pip_hgh","name":"Hampton Inn Galleria \\u2014 PIP","type":"Hotel Renovation \\u2014 Property Improvement Plan","city":"Houston","state":"TX","status":"PIP","totalCost":2046860,"keys":0,"gsf":0,"acSF":0,"lastModified":"2026-07-14T22:36:43+00:00","savedBy":"Adrian"}]');
+    }
+    localStorage.setItem("lmg_v13_migrated","1");
+    console.log("[Migration] V13 projects restored to localStorage");
+    }catch(e){console.warn("[Migration] failed:",e);}
+  })();
+
   // Standalone mode: projects live in localStorage only — do not wipe on load
 
   showDashboard();
@@ -4297,6 +4182,423 @@ function printContractsSummary(){
   <footer>LMG General Contractors · 845 Texas Ave Ste 200, Houston TX 77002 · (713) 932-8453 · adrian@lmg-gc.com · Confidential</footer>
   </body></html>`;
   const w=window.open('','_blank','width=1100,height=750');w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
+}
+
+// ================================================================
+//  G702 / G703 — AIA Application & Certificate for Payment
+// ================================================================
+function getG702State(){if(!S.g702)S.g702={applications:[]};return S.g702;}
+
+function buildSovFromDivisions(){
+  const sov=[];let itemNum=1;
+  S.divisions.forEach(div=>{
+    const total=div.items.reduce((sum,it)=>sum+(it.cost||0)*(it.qty||0),0);
+    if(total>0){sov.push({itemNo:String(itemNum++).padStart(2,'0'),description:div.name,scheduledValue:Math.round(total),completedPrevious:0,completedThisPeriod:0,storedMaterials:0,retainagePct:10});}
+  });
+  return sov;
+}
+
+function calcG702(app){
+  const sov=app.scheduleOfValues||[];
+  const coSum=(app.changeOrders||[]).reduce((s,co)=>s+(co.additions||0)-(co.deductions||0),0);
+  const contractSumToDate=(app.originalContractSum||0)+coSum;
+  let totalScheduled=0,totalPrev=0,totalThis=0,totalStored=0,totalRetainage=0;
+  sov.forEach(row=>{
+    const ret=Math.round(((row.completedPrevious||0)+(row.completedThisPeriod||0))*(row.retainagePct||10)/100)+Math.round((row.storedMaterials||0)*(app.retainageStoredPct||10)/100);
+    totalScheduled+=row.scheduledValue||0;totalPrev+=row.completedPrevious||0;totalThis+=row.completedThisPeriod||0;totalStored+=row.storedMaterials||0;totalRetainage+=ret;
+  });
+  const totalCompletedStored=totalPrev+totalThis+totalStored;
+  const totalEarnedLessRetainage=totalCompletedStored-totalRetainage;
+  const lessPrevCerts=app.lessPreviousCertificates||0;
+  const currentPaymentDue=totalEarnedLessRetainage-lessPrevCerts;
+  const balanceToFinish=contractSumToDate-totalCompletedStored;
+  return{coSum,contractSumToDate,totalScheduled,totalPrev,totalThis,totalStored,totalCompletedStored,totalRetainage,totalEarnedLessRetainage,lessPrevCerts,currentPaymentDue,balanceToFinish};
+}
+
+function renderG702Tab(){
+  const el=$('tabG702');if(!el)return;
+  const g=getG702State();const apps=g.applications||[];
+  let h=`<div style="padding:24px;max-width:1100px;margin:0 auto">`;
+  h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+    <div><div style="font-size:20px;font-weight:900;color:var(--navy)">📋 AIA G702 / G703 — Payment Applications</div>
+    <div style="font-size:12px;color:var(--text-sec);margin-top:2px">Application &amp; Certificate for Payment + Continuation Sheet</div></div>
+    <button onclick="newG702App()" style="padding:10px 20px;background:#ff5e14;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">+ New Application</button>
+  </div>`;
+  if(apps.length===0){
+    h+=`<div style="text-align:center;padding:60px;color:var(--text-sec)">
+      <div style="font-size:48px;margin-bottom:16px">📄</div>
+      <div style="font-size:16px;font-weight:600">No Applications Yet</div>
+      <div style="font-size:13px;margin-top:8px">Click "New Application" to create your first G702</div>
+    </div>`;
+  }else{
+    h+=`<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 12px;text-align:left">App #</th>
+        <th style="padding:8px 12px;text-align:left">Period To</th>
+        <th style="padding:8px 12px;text-align:right">Contract Sum</th>
+        <th style="padding:8px 12px;text-align:right">Completed &amp; Stored</th>
+        <th style="padding:8px 12px;text-align:right">Current Payment Due</th>
+        <th style="padding:8px 12px;text-align:center">Status</th>
+        <th style="padding:8px 12px;text-align:center">Actions</th>
+      </tr></thead><tbody>`;
+    apps.forEach((app,ai)=>{
+      const c=calcG702(app);
+      const statusColor=app.status==='certified'?'#10b981':app.status==='submitted'?'#6366f1':'#94a3b8';
+      h+=`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="editG702App(${ai})">
+        <td style="padding:8px 12px;font-weight:700">App #${app.appNum||ai+1}</td>
+        <td style="padding:8px 12px;color:var(--text-sec)">${app.periodTo||'—'}</td>
+        <td style="padding:8px 12px;text-align:right">${fmtN(c.contractSumToDate)}</td>
+        <td style="padding:8px 12px;text-align:right">${fmtN(c.totalCompletedStored)}</td>
+        <td style="padding:8px 12px;text-align:right;font-weight:700;color:#10b981">${fmtN(c.currentPaymentDue)}</td>
+        <td style="padding:8px 12px;text-align:center"><span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${statusColor}22;color:${statusColor};text-transform:capitalize">${app.status||'draft'}</span></td>
+        <td style="padding:8px 12px;text-align:center">
+          <button onclick="event.stopPropagation();printG702(${ai})" style="padding:4px 10px;background:#1e293b;color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;margin-right:4px">Print G702</button>
+          <button onclick="event.stopPropagation();printG703(${ai})" style="padding:4px 10px;background:#334155;color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;margin-right:4px">Print G703</button>
+          <button onclick="event.stopPropagation();deleteG702App(${ai})" style="padding:4px 10px;background:#7f1d1d;color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer">✕</button>
+        </td>
+      </tr>`;
+    });
+    h+=`</tbody></table>`;
+  }
+  h+=`</div>`;
+  el.innerHTML=h;
+}
+
+function newG702App(){
+  const g=getG702State();const apps=g.applications;
+  const appNum=apps.length+1;
+  const sov=buildSovFromDivisions();
+  const totalCostVal=totalCost();
+  const prevCertified=apps.filter(a=>a.status==='certified').reduce((s,a)=>{const c=calcG702(a);return s+(a.amountCertified!=null?a.amountCertified:c.currentPaymentDue);},0);
+  const app={id:'g702_'+Date.now(),appNum,periodFrom:'',periodTo:new Date().toISOString().slice(0,10),invoiceDate:new Date().toISOString().slice(0,10),
+    ownerName:S.project.client||'',contractorName:'LMG General Contractors',architectName:S.project.architect||'',contractDate:S.project.date||'',
+    contractFor:S.project.type||'',projectName:S.project.name||'',
+    projectLocation:S.project.city?(S.project.city+(S.project.state?', '+S.project.state:'')):'',
+    originalContractSum:Math.round(totalCostVal),changeOrders:[],retainageCompletedPct:10,retainageStoredPct:10,
+    scheduleOfValues:sov,lessPreviousCertificates:prevCertified,amountCertified:null,certDate:'',architectNotes:'',contractorSignDate:'',status:'draft'};
+  apps.push(app);saveState();editG702App(apps.length-1);
+}
+
+function editG702App(ai){
+  const g=getG702State();const app=g.applications[ai];if(!app)return;
+  const el=$('tabG702');const c=calcG702(app);
+  const sov=app.scheduleOfValues||[];const cos=app.changeOrders||[];
+  let h=`<div style="padding:24px;max-width:1100px;margin:0 auto">`;
+  h+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <button onclick="renderG702Tab()" style="padding:8px 16px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer">← Back</button>
+    <div style="font-size:18px;font-weight:900;color:var(--navy)">Application #${app.appNum} — AIA G702</div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button onclick="printG702(${ai})" style="padding:8px 16px;background:#ff5e14;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🖨 Print G702</button>
+      <button onclick="printG703(${ai})" style="padding:8px 16px;background:#1e293b;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🖨 Print G703</button>
+    </div></div>`;
+  // Project info
+  h+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--lmg);margin-bottom:14px">Project Information</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Application No.</label><input class="field-input" type="number" value="${app.appNum}" onchange="updateG702Field(${ai},'appNum',+this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Period From</label><input class="field-input" type="date" value="${app.periodFrom||''}" onchange="updateG702Field(${ai},'periodFrom',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Period To</label><input class="field-input" type="date" value="${app.periodTo||''}" onchange="updateG702Field(${ai},'periodTo',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Project Name</label><input class="field-input" value="${esc(app.projectName||'')}" onchange="updateG702Field(${ai},'projectName',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Project Location</label><input class="field-input" value="${esc(app.projectLocation||'')}" onchange="updateG702Field(${ai},'projectLocation',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Contract For</label><input class="field-input" value="${esc(app.contractFor||'')}" onchange="updateG702Field(${ai},'contractFor',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Owner</label><input class="field-input" value="${esc(app.ownerName||'')}" onchange="updateG702Field(${ai},'ownerName',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Contractor</label><input class="field-input" value="${esc(app.contractorName||'')}" onchange="updateG702Field(${ai},'contractorName',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Architect</label><input class="field-input" value="${esc(app.architectName||'')}" onchange="updateG702Field(${ai},'architectName',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Contract Date</label><input class="field-input" type="date" value="${app.contractDate||''}" onchange="updateG702Field(${ai},'contractDate',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Invoice Date</label><input class="field-input" type="date" value="${app.invoiceDate||''}" onchange="updateG702Field(${ai},'invoiceDate',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Original Contract Sum</label><input class="field-input" type="number" value="${app.originalContractSum||0}" onchange="updateG702Field(${ai},'originalContractSum',+this.value)"></div>
+    </div></div>`;
+  // Change Orders
+  h+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--lmg)">Change Orders</div>
+      <button onclick="addG702CO(${ai})" style="padding:4px 12px;background:#1e293b;color:#fff;border:none;border-radius:5px;font-size:12px;cursor:pointer">+ Add CO</button>
+    </div>`;
+  if(cos.length===0){h+=`<div style="color:var(--text-sec);font-size:12px;font-style:italic">No change orders — net change: $0</div>`;}
+  else{
+    h+=`<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="border-bottom:1px solid var(--border)">
+      <th style="padding:6px 8px;text-align:left">CO #</th><th style="padding:6px 8px;text-align:left">Description</th>
+      <th style="padding:6px 8px;text-align:right">Additions</th><th style="padding:6px 8px;text-align:right">Deductions</th><th style="padding:6px 8px;text-align:center">Remove</th>
+    </tr></thead><tbody>`;
+    cos.forEach((co,ci)=>{
+      h+=`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:5px 8px"><input style="width:50px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--input-bg);color:var(--text)" type="number" value="${co.num||ci+1}" onchange="updateG702CO(${ai},${ci},'num',+this.value)"></td>
+        <td style="padding:5px 8px"><input style="width:100%;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--input-bg);color:var(--text)" value="${esc(co.description||'')}" onchange="updateG702CO(${ai},${ci},'description',this.value)"></td>
+        <td style="padding:5px 8px"><input type="number" style="width:110px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:right;background:var(--input-bg);color:var(--text)" value="${co.additions||0}" onchange="updateG702CO(${ai},${ci},'additions',+this.value)"></td>
+        <td style="padding:5px 8px"><input type="number" style="width:110px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:right;background:var(--input-bg);color:var(--text)" value="${co.deductions||0}" onchange="updateG702CO(${ai},${ci},'deductions',+this.value)"></td>
+        <td style="padding:5px 8px;text-align:center"><button onclick="removeG702CO(${ai},${ci})" style="padding:2px 8px;background:#7f1d1d;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button></td>
+      </tr>`;
+    });
+    h+=`</tbody></table>`;
+  }
+  h+=`</div>`;
+  // Retainage
+  h+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--lmg);margin-bottom:14px">Retainage &amp; Prior Payments</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">% on Completed Work</label><input class="field-input" type="number" style="width:80px" value="${app.retainageCompletedPct||10}" min="0" max="20" onchange="updateG702Field(${ai},'retainageCompletedPct',+this.value);editG702App(${ai})"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">% on Stored Materials</label><input class="field-input" type="number" style="width:80px" value="${app.retainageStoredPct||10}" min="0" max="20" onchange="updateG702Field(${ai},'retainageStoredPct',+this.value);editG702App(${ai})"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Less Previous Certificates</label><input class="field-input" type="number" style="width:160px" value="${app.lessPreviousCertificates||0}" onchange="updateG702Field(${ai},'lessPreviousCertificates',+this.value);editG702App(${ai})"></div>
+    </div></div>`;
+  // G703 Schedule of Values
+  let tSched=0,tPrev=0,tThis=0,tStored=0,tRet=0;
+  let sovRows='';
+  sov.forEach((row,ri)=>{
+    const g=(row.completedPrevious||0)+(row.completedThisPeriod||0)+(row.storedMaterials||0);
+    const sched=row.scheduledValue||0;
+    const pct=sched>0?Math.round(g/sched*100):0;
+    const bal=sched-g;
+    const ret=Math.round(((row.completedPrevious||0)+(row.completedThisPeriod||0))*(row.retainagePct||10)/100)+Math.round((row.storedMaterials||0)*(app.retainageStoredPct||10)/100);
+    tSched+=sched;tPrev+=row.completedPrevious||0;tThis+=row.completedThisPeriod||0;tStored+=row.storedMaterials||0;tRet+=ret;
+    sovRows+=`<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:4px 6px"><input style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:var(--input-bg);color:var(--text)" value="${esc(row.itemNo||'')}" onchange="updateG702Sov(${ai},${ri},'itemNo',this.value)"></td>
+      <td style="padding:4px 6px"><input style="width:100%;min-width:160px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:var(--input-bg);color:var(--text)" value="${esc(row.description||'')}" onchange="updateG702Sov(${ai},${ri},'description',this.value)"></td>
+      <td style="padding:4px 6px"><input type="number" style="width:90px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:11px;text-align:right;background:var(--input-bg);color:var(--text)" value="${sched}" onchange="updateG702Sov(${ai},${ri},'scheduledValue',+this.value);editG702App(${ai})"></td>
+      <td style="padding:4px 6px"><input type="number" style="width:90px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:11px;text-align:right;background:var(--input-bg);color:var(--text)" value="${row.completedPrevious||0}" onchange="updateG702Sov(${ai},${ri},'completedPrevious',+this.value);editG702App(${ai})"></td>
+      <td style="padding:4px 6px"><input type="number" style="width:90px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:11px;text-align:right;background:var(--input-bg);color:var(--text)" value="${row.completedThisPeriod||0}" onchange="updateG702Sov(${ai},${ri},'completedThisPeriod',+this.value);editG702App(${ai})"></td>
+      <td style="padding:4px 6px"><input type="number" style="width:80px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:11px;text-align:right;background:var(--input-bg);color:var(--text)" value="${row.storedMaterials||0}" onchange="updateG702Sov(${ai},${ri},'storedMaterials',+this.value);editG702App(${ai})"></td>
+      <td style="padding:4px 6px;text-align:right;font-weight:600">${fmtN(g)}</td>
+      <td style="padding:4px 6px;text-align:center;font-weight:700;color:${pct>=100?'#10b981':pct>=50?'#f59e0b':'var(--text)'}">${pct}%</td>
+      <td style="padding:4px 6px;text-align:right;color:var(--text-sec)">${fmtN(bal)}</td>
+      <td style="padding:4px 6px;text-align:right;color:#f59e0b">${fmtN(ret)}</td>
+      <td style="padding:4px 6px"><input type="number" style="width:44px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;font-size:11px;text-align:right;background:var(--input-bg);color:var(--text)" value="${row.retainagePct||10}" min="0" max="20" onchange="updateG702Sov(${ai},${ri},'retainagePct',+this.value);editG702App(${ai})">%</td>
+      <td style="padding:4px 6px"><button onclick="removeG702SovRow(${ai},${ri})" style="padding:2px 6px;background:#7f1d1d;color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer">✕</button></td>
+    </tr>`;
+  });
+  const tG=tPrev+tThis+tStored;
+  h+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div><div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--lmg)">G703 — Schedule of Values / Continuation Sheet</div>
+      <div style="font-size:11px;color:var(--text-sec);margin-top:2px">Enter $ completed this period per line. Columns D+E+F = Total Completed &amp; Stored.</div></div>
+      <div style="display:flex;gap:8px">
+        <button onclick="addG702SovRow(${ai})" style="padding:4px 12px;background:#1e293b;color:#fff;border:none;border-radius:5px;font-size:12px;cursor:pointer">+ Add Row</button>
+        <button onclick="rebuildSovFromDivisions(${ai})" style="padding:4px 12px;background:#334155;color:#fff;border:none;border-radius:5px;font-size:12px;cursor:pointer">↺ Rebuild from Estimate</button>
+      </div></div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
+      <thead><tr style="background:var(--input-bg);border-bottom:2px solid var(--border)">
+        <th style="padding:7px 6px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec);white-space:nowrap">Item</th>
+        <th style="padding:7px 6px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec)">Description of Work</th>
+        <th style="padding:7px 6px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec);white-space:nowrap">Scheduled Value (C)</th>
+        <th style="padding:7px 6px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec);white-space:nowrap">From Previous (D)</th>
+        <th style="padding:7px 6px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec);white-space:nowrap">This Period (E)</th>
+        <th style="padding:7px 6px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec);white-space:nowrap">Stored Mat. (F)</th>
+        <th style="padding:7px 6px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec);white-space:nowrap">Total (G=D+E+F)</th>
+        <th style="padding:7px 6px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec)">%</th>
+        <th style="padding:7px 6px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec);white-space:nowrap">Balance (C-G)</th>
+        <th style="padding:7px 6px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec)">Retainage</th>
+        <th style="padding:7px 6px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text-sec)">Ret%</th>
+        <th style="padding:7px 6px"></th>
+      </tr></thead><tbody>${sovRows}
+      <tr style="background:var(--input-bg);font-weight:700;border-top:2px solid var(--border)">
+        <td colspan="2" style="padding:8px 6px;font-size:12px">TOTALS</td>
+        <td style="padding:8px 6px;text-align:right">${fmtN(tSched)}</td>
+        <td style="padding:8px 6px;text-align:right">${fmtN(tPrev)}</td>
+        <td style="padding:8px 6px;text-align:right">${fmtN(tThis)}</td>
+        <td style="padding:8px 6px;text-align:right">${fmtN(tStored)}</td>
+        <td style="padding:8px 6px;text-align:right">${fmtN(tG)}</td>
+        <td style="padding:8px 6px;text-align:center">${tSched>0?Math.round(tG/tSched*100):0}%</td>
+        <td style="padding:8px 6px;text-align:right">${fmtN(tSched-tG)}</td>
+        <td style="padding:8px 6px;text-align:right;color:#f59e0b">${fmtN(tRet)}</td>
+        <td colspan="2"></td>
+      </tr></tbody></table></div></div>`;
+  // G702 Summary
+  h+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--lmg);margin-bottom:14px">G702 — Summary</div>
+    <div style="max-width:520px">`;
+  const orig=c.contractSumToDate-c.coSum;
+  const rows702=[
+    ['Original Contract Sum',orig,false,null,false],
+    ['Net Change by Change Orders',c.coSum,false,c.coSum<0?'#ef4444':c.coSum>0?'#10b981':null,false],
+    ['Contract Sum to Date',c.contractSumToDate,true,null,false],
+    ['Total Completed &amp; Stored to Date (G703 Column G)',c.totalCompletedStored,false,null,false],
+    ['Retainage ('+app.retainageCompletedPct+'% Completed + '+app.retainageStoredPct+'% Stored)',c.totalRetainage,false,'#f59e0b',false],
+    ['Total Earned Less Retainage',c.totalEarnedLessRetainage,false,null,false],
+    ['Less Previous Certificates for Payment',c.lessPrevCerts,false,'#f59e0b',false],
+    ['CURRENT PAYMENT DUE',c.currentPaymentDue,true,'#10b981',true],
+    ['Balance to Finish Including Retainage',c.balanceToFinish+c.totalRetainage,false,'#64748b',false]
+  ];
+  rows702.forEach(([label,amount,bold,color,large])=>{
+    const clr=color||'var(--text)';const fw=bold||large?'900':'500';const fs=large?'16px':'13px';
+    const sep=bold?'border-top:1px solid var(--border);margin-top:4px;padding-top:8px;':'';
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;${sep}">
+      <span style="font-size:${fs};font-weight:${fw};color:var(--text)">${label}</span>
+      <span style="font-size:${fs};font-weight:${fw};color:${clr}">${fmtN(amount)}</span>
+    </div>`;
+  });
+  h+=`</div></div>`;
+  // Architect Certification
+  h+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--lmg);margin-bottom:14px">Architect's Certificate for Payment</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Amount Certified</label>
+        <input class="field-input" type="number" value="${app.amountCertified!=null?app.amountCertified:''}" placeholder="${fmtN(c.currentPaymentDue)}" onchange="updateG702Field(${ai},'amountCertified',+this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Certificate Date</label>
+        <input class="field-input" type="date" value="${app.certDate||''}" onchange="updateG702Field(${ai},'certDate',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Architect Notes</label>
+        <input class="field-input" value="${esc(app.architectNotes||'')}" onchange="updateG702Field(${ai},'architectNotes',this.value)"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-sec);display:block;margin-bottom:4px">Application Status</label>
+        <select class="field-input" onchange="updateG702Field(${ai},'status',this.value)">
+          <option value="draft" ${app.status==='draft'?'selected':''}>Draft</option>
+          <option value="submitted" ${app.status==='submitted'?'selected':''}>Submitted</option>
+          <option value="certified" ${app.status==='certified'?'selected':''}>Certified / Paid</option>
+        </select></div>
+    </div></div>`;
+  h+=`</div>`;
+  el.innerHTML=h;
+}
+
+function updateG702Field(ai,field,value){const g=getG702State();if(!g.applications[ai])return;g.applications[ai][field]=value;saveState();}
+function updateG702CO(ai,ci,field,value){const g=getG702State();if(!g.applications[ai])return;g.applications[ai].changeOrders[ci][field]=value;saveState();}
+function updateG702Sov(ai,ri,field,value){const g=getG702State();if(!g.applications[ai])return;g.applications[ai].scheduleOfValues[ri][field]=value;saveState();}
+
+function addG702CO(ai){const g=getG702State();const app=g.applications[ai];if(!app)return;app.changeOrders.push({num:app.changeOrders.length+1,description:'',additions:0,deductions:0});saveState();editG702App(ai);}
+function removeG702CO(ai,ci){const g=getG702State();const app=g.applications[ai];if(!app)return;app.changeOrders.splice(ci,1);saveState();editG702App(ai);}
+function addG702SovRow(ai){const g=getG702State();const app=g.applications[ai];if(!app)return;const n=app.scheduleOfValues.length+1;app.scheduleOfValues.push({itemNo:String(n).padStart(2,'0'),description:'',scheduledValue:0,completedPrevious:0,completedThisPeriod:0,storedMaterials:0,retainagePct:10});saveState();editG702App(ai);}
+function removeG702SovRow(ai,ri){const g=getG702State();const app=g.applications[ai];if(!app)return;app.scheduleOfValues.splice(ri,1);saveState();editG702App(ai);}
+function deleteG702App(ai){const g=getG702State();if(!confirm('Delete Application #'+(g.applications[ai].appNum||ai+1)+'?'))return;g.applications.splice(ai,1);saveState();renderG702Tab();}
+function rebuildSovFromDivisions(ai){
+  const g=getG702State();const app=g.applications[ai];if(!app)return;
+  if(!confirm('Rebuild G703 schedule from current estimate divisions? Completion data preserved where descriptions match.'))return;
+  const newSov=buildSovFromDivisions();
+  newSov.forEach(newRow=>{const ex=app.scheduleOfValues.find(r=>r.description===newRow.description);if(ex){newRow.completedPrevious=ex.completedPrevious||0;newRow.completedThisPeriod=ex.completedThisPeriod||0;newRow.storedMaterials=ex.storedMaterials||0;newRow.retainagePct=ex.retainagePct||10;}});
+  app.scheduleOfValues=newSov;saveState();editG702App(ai);
+}
+
+function printG702(ai){
+  const g=getG702State();const app=g.applications[ai];if(!app)return;
+  const c=calcG702(app);const cos=app.changeOrders||[];const now=new Date();
+  const coAddTotal=cos.reduce((s,co)=>s+(co.additions||0),0);
+  const coDedTotal=cos.reduce((s,co)=>s+(co.deductions||0),0);
+  const certAmt=app.amountCertified!=null?app.amountCertified:c.currentPaymentDue;
+  let html=`<!DOCTYPE html><html><head><title>G702 — App #${app.appNum}</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Times New Roman',serif;font-size:10px;color:#000;padding:14px;background:#fff}
+  table{width:100%;border-collapse:collapse}td,th{border:1px solid #000;padding:4px 6px;vertical-align:top}
+  .bold{font-weight:bold}.right{text-align:right}.center{text-align:center}
+  .sec{background:#e8e8e8;font-weight:bold;font-size:10px;padding:4px 8px;border:1px solid #000}
+  .tot td{font-weight:bold;background:#f5f5f5}.sig{border-bottom:1px solid #000;height:22px;margin-top:4px}
+  .lbl{font-size:8px;color:#444}.nb{border:none!important}
+  h1{text-align:center;font-size:14px;letter-spacing:1px;padding:8px;border:2px solid #000;margin-bottom:0}
+  h2{text-align:center;font-size:10px;letter-spacing:.5px;padding:4px;border:1px solid #000;border-top:none;margin-bottom:8px}
+  @media print{body{padding:4px}}</style></head><body>`;
+  html+=`<h1>AIA DOCUMENT G702</h1><h2>APPLICATION AND CERTIFICATE FOR PAYMENT</h2>`;
+  html+=`<table style="margin-bottom:0"><tr>
+    <td style="width:60%">
+      <div class="lbl">PROJECT:</div><div class="bold" style="font-size:11px">${esc(app.projectName||S.project.name||'—')}</div>
+      <div class="lbl" style="margin-top:4px">LOCATION:</div><div>${esc(app.projectLocation||'')}</div>
+      <div class="lbl" style="margin-top:4px">OWNER:</div><div>${esc(app.ownerName||'')}</div>
+      <div class="lbl" style="margin-top:4px">ARCHITECT:</div><div>${esc(app.architectName||'')}</div>
+    </td>
+    <td style="width:40%">
+      <div><span class="lbl">APPLICATION NO: </span><span class="bold">${app.appNum||1}</span></div>
+      <div style="margin-top:4px"><span class="lbl">PERIOD FROM: </span>${app.periodFrom||'—'} <span class="lbl"> TO: </span>${app.periodTo||'—'}</div>
+      <div style="margin-top:4px"><span class="lbl">CONTRACT DATE: </span>${app.contractDate||'—'}</div>
+      <div style="margin-top:4px"><span class="lbl">CONTRACTOR: </span><span class="bold">${esc(app.contractorName||'LMG General Contractors')}</span></div>
+      <div style="margin-top:4px"><span class="lbl">CONTRACT FOR: </span>${esc(app.contractFor||'')}</div>
+    </td>
+  </tr></table>`;
+  html+=`<table style="margin-top:0"><tr><td colspan="4" class="sec">CHANGE ORDER SUMMARY</td></tr>
+    <tr><th>CO No.</th><th>Description</th><th class="right">Additions (+)</th><th class="right">Deductions (−)</th></tr>`;
+  if(cos.length>0)cos.forEach(co=>{html+=`<tr><td class="center">${co.num||''}</td><td>${esc(co.description||'')}</td><td class="right">${fmt(co.additions||0)}</td><td class="right">${fmt(co.deductions||0)}</td></tr>`;});
+  else html+=`<tr><td colspan="4" class="center" style="font-style:italic;color:#666">No change orders</td></tr>`;
+  html+=`<tr class="tot"><td colspan="2">TOTALS</td><td class="right">${fmt(coAddTotal)}</td><td class="right">${fmt(coDedTotal)}</td></tr></table>`;
+  const s702=[
+    ['1.','Original Contract Sum',fmt(app.originalContractSum||0)],
+    ['2.','Net Change by Change Orders',fmt(c.coSum)],
+    ['3.','Contract Sum to Date (Line 1 \u00b1 2)',fmt(c.contractSumToDate)],
+    ['4.','Total Completed &amp; Stored to Date (Column G on G703)',fmt(c.totalCompletedStored)],
+    ['5a.',app.retainageCompletedPct+'% of Completed Work (Columns D+E on G703)',fmt(Math.round((c.totalPrev+c.totalThis)*app.retainageCompletedPct/100))],
+    ['5b.',app.retainageStoredPct+'% of Stored Material (Column F on G703)',fmt(Math.round(c.totalStored*app.retainageStoredPct/100))],
+    ['5.','Total Retainage (Lines 5a + 5b)',fmt(c.totalRetainage)],
+    ['6.','Total Earned Less Retainage (Line 4 minus 5)',fmt(c.totalEarnedLessRetainage)],
+    ['7.','Less Previous Certificates for Payment (Line 6 from prior Certificate)',fmt(c.lessPrevCerts)],
+    ['8.','CURRENT PAYMENT DUE (Line 6 minus Line 7)',fmt(c.currentPaymentDue)],
+    ['9.','Balance to Finish, Including Retainage (Line 3 minus Line 6)',fmt(c.balanceToFinish+c.totalRetainage)]
+  ];
+  html+=`<table style="margin-top:0">`;
+  s702.forEach(([num,label,val],idx)=>{
+    const isKey=['3.','5.','8.','9.'].includes(num);
+    html+=`<tr style="${isKey?'font-weight:bold;background:#f9f9f9':''}"><td style="width:5%;text-align:right">${num}</td><td style="width:70%">${label}</td><td style="width:25%;text-align:right;font-size:11px">${val}</td></tr>`;
+  });
+  html+=`</table>`;
+  html+=`<table style="margin-top:8px"><tr>
+    <td style="width:50%;vertical-align:top;padding:10px">
+      <div style="font-size:9px;font-weight:bold;margin-bottom:6px">CONTRACTOR'S APPLICATION FOR PAYMENT</div>
+      <div style="font-size:8.5px;margin-bottom:8px">The undersigned Contractor certifies that to the best of the Contractor's knowledge, information and belief the Work covered by this Application has been completed in accordance with the Contract Documents, that all amounts have been paid by the Contractor for Work for which previous Certificates were issued and payments received, and that current payment shown herein is now due.</div>
+      <div class="bold">${esc(app.contractorName||'LMG General Contractors')}</div>
+      <div style="margin-top:6px"><span class="lbl">By: </span><div class="sig"></div></div>
+      <div style="margin-top:6px"><span class="lbl">Name and Title: </span><div class="sig"></div></div>
+      <div style="margin-top:6px"><span class="lbl">Date: </span>${app.contractorSignDate||'_____________'}</div>
+      <div style="margin-top:10px;font-size:8px;font-weight:bold">SUBSCRIBED AND SWORN to before me this ___ day of __________, 20____</div>
+      <div style="margin-top:4px"><span class="lbl">Notary Public: </span><div class="sig"></div></div>
+      <div style="margin-top:4px"><span class="lbl">My Commission Expires: </span>___________________</div>
+    </td>
+    <td style="width:50%;vertical-align:top;padding:10px">
+      <div style="font-size:9px;font-weight:bold;margin-bottom:6px">ARCHITECT'S CERTIFICATE FOR PAYMENT</div>
+      <div style="font-size:8.5px;margin-bottom:8px">In accordance with the Contract Documents, based on on-site observations and the data comprising this application, the Architect certifies to the Owner that to the best of the Architect's knowledge, information and belief the Work has progressed as indicated, the quality of the Work is in accordance with the Contract Documents, and the Contractor is entitled to payment of the AMOUNT CERTIFIED.</div>
+      <div style="margin-bottom:6px"><span class="lbl">AMOUNT CERTIFIED: </span><span class="bold" style="font-size:14px">${fmt(certAmt)}</span></div>
+      <div style="font-size:7.5px;margin-bottom:8px;color:#555">(Attach explanation if amount certified differs from the amount applied. Initial all figures on this Application and on the Continuation Sheet that are changed to conform with the amount certified.)</div>
+      ${app.architectNotes?`<div style="font-size:8.5px;margin-bottom:6px;font-style:italic">${esc(app.architectNotes)}</div>`:''}
+      <div><span class="lbl">Architect: </span><span class="bold">${esc(app.architectName||'—')}</span></div>
+      <div style="margin-top:6px"><span class="lbl">By: </span><div class="sig"></div></div>
+      <div style="margin-top:6px"><span class="lbl">Name and Title: </span><div class="sig"></div></div>
+      <div style="margin-top:6px"><span class="lbl">Date: </span>${app.certDate||'_____________'}</div>
+      <div style="margin-top:10px;font-size:7.5px;border:1px solid #000;padding:5px">This Certificate is not negotiable. The AMOUNT CERTIFIED is payable only to the Contractor named herein. Issuance, payment and acceptance of payment are without prejudice to any rights of the Owner or Contractor under this Contract.</div>
+    </td>
+  </tr></table>`;
+  html+=`<div style="margin-top:8px;font-size:8px;color:#555;text-align:center">LMG General Contractors &middot; 845 Texas Ave Ste 200, Houston TX 77002 &middot; (713) 932-8453 &middot; Printed ${now.toLocaleDateString()}</div>`;
+  html+=`</body></html>`;
+  const w=window.open('','_blank','width=900,height=780');w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
+}
+
+function printG703(ai){
+  const g=getG702State();const app=g.applications[ai];if(!app)return;
+  const sov=app.scheduleOfValues||[];const now=new Date();
+  let tSched=0,tPrev=0,tThis=0,tStored=0,tG=0,tRet=0;
+  let rows='';
+  sov.forEach((row,ri)=>{
+    const g2=(row.completedPrevious||0)+(row.completedThisPeriod||0)+(row.storedMaterials||0);
+    const sched=row.scheduledValue||0;const pct=sched>0?Math.round(g2/sched*100):0;
+    const ret=Math.round(((row.completedPrevious||0)+(row.completedThisPeriod||0))*(row.retainagePct||10)/100)+Math.round((row.storedMaterials||0)*(app.retainageStoredPct||10)/100);
+    tSched+=sched;tPrev+=row.completedPrevious||0;tThis+=row.completedThisPeriod||0;tStored+=row.storedMaterials||0;tG+=g2;tRet+=ret;
+    rows+=`<tr><td class="center">${esc(row.itemNo||String(ri+1))}</td><td>${esc(row.description||'')}</td>
+      <td class="right">${fmt(sched)}</td><td class="right">${fmt(row.completedPrevious||0)}</td>
+      <td class="right">${fmt(row.completedThisPeriod||0)}</td><td class="right">${fmt(row.storedMaterials||0)}</td>
+      <td class="right bold">${fmt(g2)}</td><td class="center">${pct}%</td>
+      <td class="right">${fmt(sched-g2)}</td><td class="right">${fmt(ret)}</td></tr>`;
+  });
+  let html=`<!DOCTYPE html><html><head><title>G703 — App #${app.appNum}</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Times New Roman',serif;font-size:9px;color:#000;padding:10px;background:#fff}
+  table{width:100%;border-collapse:collapse}td,th{border:1px solid #000;padding:3px 5px;vertical-align:middle}
+  th{background:#e8e8e8;font-weight:bold;font-size:8px;text-align:center}.right{text-align:right}.center{text-align:center}.bold{font-weight:bold}
+  .tot td{font-weight:bold;background:#f0f0f0;border-top:2px solid #000}
+  h1{text-align:center;font-size:13px;font-weight:bold;padding:6px;border:2px solid #000;margin-bottom:0}
+  @media print{body{padding:2px}}</style></head><body>`;
+  html+=`<h1>AIA DOCUMENT G703 — CONTINUATION SHEET</h1>`;
+  html+=`<table style="margin-bottom:0;border-bottom:none"><tr>
+    <td style="width:55%"><span style="font-size:8px;color:#555">PROJECT: </span><strong>${esc(app.projectName||S.project.name||'—')}</strong>&nbsp;&nbsp;<span style="font-size:8px;color:#555">LOCATION: </span>${esc(app.projectLocation||'')}</td>
+    <td style="width:25%"><span style="font-size:8px;color:#555">APPLICATION NO: </span><strong>${app.appNum||1}</strong>&nbsp;&nbsp;<span style="font-size:8px;color:#555">PERIOD TO: </span>${app.periodTo||'—'}</td>
+    <td style="width:20%"><span style="font-size:8px;color:#555">CONTRACTOR: </span><strong>${esc(app.contractorName||'LMG General Contractors')}</strong></td>
+  </tr></table>`;
+  html+=`<table><thead>
+    <tr><th rowspan="2">ITEM NO.</th><th rowspan="2" style="text-align:left">DESCRIPTION OF WORK</th><th rowspan="2" style="text-align:right">SCHEDULED VALUE (C)</th>
+      <th colspan="2" style="text-align:center">WORK COMPLETED</th>
+      <th rowspan="2" style="text-align:right">MATERIALS PRESENTLY STORED (F)<br>(not in D or E)</th>
+      <th rowspan="2" style="text-align:right">TOTAL COMPLETED &amp; STORED TO DATE<br>(G = D+E+F)</th>
+      <th rowspan="2" style="text-align:center">%<br>(G/C)</th>
+      <th rowspan="2" style="text-align:right">BALANCE TO FINISH<br>(C-G)</th>
+      <th rowspan="2" style="text-align:right">RETAINAGE</th></tr>
+    <tr><th style="text-align:right">FROM PREVIOUS APPLICATION (D)</th><th style="text-align:right">THIS PERIOD (E)</th></tr>
+  </thead><tbody>${rows}
+    <tr class="tot"><td class="center">—</td><td class="bold">GRAND TOTALS</td>
+      <td class="right">${fmt(tSched)}</td><td class="right">${fmt(tPrev)}</td><td class="right">${fmt(tThis)}</td>
+      <td class="right">${fmt(tStored)}</td><td class="right bold">${fmt(tG)}</td>
+      <td class="center">${tSched>0?Math.round(tG/tSched*100):0}%</td>
+      <td class="right">${fmt(tSched-tG)}</td><td class="right">${fmt(tRet)}</td>
+    </tr></tbody></table>`;
+  html+=`<div style="margin-top:8px;font-size:8px;color:#555;text-align:center">LMG General Contractors &middot; 845 Texas Ave Ste 200, Houston TX 77002 &middot; Continuation Sheet for Application #${app.appNum} &middot; Printed ${now.toLocaleDateString()}</div>`;
+  html+=`</body></html>`;
+  const w=window.open('','_blank','width=1100,height=780');w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
 }
 
 </script>
